@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem } from '../types';
 import { StorageService } from '../services/storage';
-import { GeminiService } from '../services/gemini';
 import { Button, Card, StatusBadge, Toast } from './ui';
-import { ShoppingCart, Sparkles, Store, Plus, Minus, Bell, Pencil } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Bell, Pencil } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -15,8 +14,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
-  const [geminiSuggestion, setGeminiSuggestion] = useState<string>('');
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string, type?: 'info'|'success'} | null>(null);
 
@@ -76,13 +73,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
     prevOrdersRef.current = myOrders;
   }, [myOrders]);
-
-  const getAIRecommendation = async () => {
-    setIsSuggesting(true);
-    const suggestion = await GeminiService.getRecommendation(menus);
-    setGeminiSuggestion(suggestion);
-    setIsSuggesting(false);
-  };
 
   const addToCart = (menu: MenuItem) => {
     setCart(prev => {
@@ -167,31 +157,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
       {activeTab === 'menu' && (
         <>
-          {/* AI Suggestion */}
-          <Card className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-            <div className="flex items-start gap-3">
-              <div className="bg-white p-2 rounded-full shadow-sm text-indigo-600">
-                <Sparkles size={20} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-indigo-900 mb-1">Bingung pilih menu?</h3>
-                {geminiSuggestion ? (
-                  <p className="text-indigo-800 text-sm italic mb-3">"{geminiSuggestion}"</p>
-                ) : (
-                  <p className="text-indigo-700 text-sm mb-3">Tanya asisten virtual kami untuk rekomendasi makanan terbaik hari ini.</p>
-                )}
-                <Button 
-                  variant="secondary" 
-                  onClick={getAIRecommendation} 
-                  disabled={isSuggesting}
-                  className="text-xs bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
-                >
-                  {isSuggesting ? 'Sedang berpikir...' : 'Rekomendasikan Makanan'}
-                </Button>
-              </div>
-            </div>
-          </Card>
-
           {/* Shop Filter */}
           <div className="flex overflow-x-auto gap-2 mb-6 pb-2 hide-scrollbar">
             <button 
