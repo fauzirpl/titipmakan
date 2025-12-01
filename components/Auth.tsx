@@ -54,8 +54,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="mx-auto bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
             <ChefHat className="w-8 h-8 text-blue-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">KantinKantor</h1>
-          <p className="text-gray-500">Aplikasi pemesanan makanan simpel</p>
+          <h1 className="text-2xl font-bold text-gray-900">e-Patuy</h1>
+          <p className="text-gray-500">Pesan makan anti lupa-lupa club</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

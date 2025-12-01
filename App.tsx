@@ -41,7 +41,7 @@ const App: React.FC = () => {
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-2">
               <div className="bg-blue-600 text-white p-1.5 rounded-lg font-bold text-lg">KK</div>
-              <span className="font-semibold text-gray-800">KantinKantor</span>
+              <span className="font-semibold text-gray-800">e-Patuy</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 ml-2">
                 {currentUser.role === UserRole.WORKER ? 'Mode Karyawan' : 'Mode Pramu Bakti'}
               </span>

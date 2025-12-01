@@ -1,6 +1,13 @@
 import { MenuItem, Order, Shop, User, UserRole } from '../types';
 
-const API_BASE = 'http://localhost:5000/api';
+// KONFIGURASI URL API UNTUK VERCEL
+// Logic:
+// 1. Jika running di localhost (Development), gunakan http://localhost:5000/api
+// 2. Jika running di Vercel (Production), gunakan relative path '/api' karena frontend & backend di domain sama.
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocalhost 
+  ? (process.env.REACT_APP_API_URL || 'http://localhost:5000') + '/api'
+  : '/api';
 
 // Helper untuk menghandle response
 const handleResponse = async (res: Response) => {
@@ -18,11 +25,31 @@ const mapId = (item: any) => {
   return { id: _id, ...rest };
 };
 
+// Fallback Local Storage Helper
+const getLocal = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
+const setLocal = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
+
+// Flag untuk menandakan mode offline/fallback
+let isOfflineMode = false;
+
+// Wrapper fetch yang otomatis fallback ke localStorage jika server mati
+const safeFetch = async (url: string, options?: RequestInit) => {
+  if (isOfflineMode) throw new Error("Offline Mode");
+  try {
+    const res = await fetch(url, options);
+    return res;
+  } catch (e) {
+    console.warn("Gagal menghubungi server, beralih ke LocalStorage fallback.", e);
+    isOfflineMode = true;
+    throw e;
+  }
+};
+
 export const StorageService = {
   // Auth
   login: async (email: string, password: string): Promise<User | null> => {
     try {
-      const res = await fetch(`${API_BASE}/login`, {
+      const res = await safeFetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -35,21 +62,37 @@ export const StorageService = {
       localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
       return mappedUser;
     } catch (e) {
-      console.error("Login error", e);
+      // Fallback Login Local
+      const users = getLocal('kk_users');
+      const user = users.find((u: User) => u.email === email && u.password === password);
+      if (user) {
+         localStorage.setItem('kk_current_user', JSON.stringify(user));
+         return user;
+      }
       return null;
     }
   },
   
   register: async (name: string, email: string, password: string, role: UserRole): Promise<User> => {
-    const res = await fetch(`${API_BASE}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, role }),
-    });
-    const user = await handleResponse(res);
-    const mappedUser = mapId(user);
-    localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
-    return mappedUser;
+    try {
+      const res = await safeFetch(`${API_BASE}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role }),
+      });
+      const user = await handleResponse(res);
+      const mappedUser = mapId(user);
+      localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
+      return mappedUser;
+    } catch (e) {
+      // Fallback Register Local
+      const newUser = { id: Date.now().toString(), name, email, password, role };
+      const users = getLocal('kk_users');
+      users.push(newUser);
+      setLocal('kk_users', users);
+      localStorage.setItem('kk_current_user', JSON.stringify(newUser));
+      return newUser;
+    }
   },
 
   logout: () => {
@@ -64,12 +107,11 @@ export const StorageService = {
   // Shops
   getShops: async (): Promise<Shop[]> => {
     try {
-      const res = await fetch(`${API_BASE}/shops`);
+      const res = await safeFetch(`${API_BASE}/shops`);
       const data = await handleResponse(res);
       return data.map(mapId);
     } catch (e) {
-      console.error(e);
-      return [];
+       return getLocal('kk_shops');
     }
   },
 
@@ -77,12 +119,16 @@ export const StorageService = {
   subscribeToShops: (callback: (shops: Shop[]) => void) => {
     const fetchShops = async () => {
       try {
-        const res = await fetch(`${API_BASE}/shops`);
+        const res = await safeFetch(`${API_BASE}/shops`);
         if(res.ok) {
           const data = await res.json();
           callback(data.map(mapId));
+          isOfflineMode = false; // Reset jika berhasil connect lagi
         }
-      } catch (e) { /* silent fail on connection lost */ }
+      } catch (e) { 
+        // Fallback
+        callback(getLocal('kk_shops'));
+      }
     };
     
     fetchShops(); // Initial fetch
@@ -92,43 +138,59 @@ export const StorageService = {
 
   saveShop: async (shop: Shop) => {
     const { id, ...data } = shop;
-    if (id && !id.startsWith('temp')) { // Update
-      await fetch(`${API_BASE}/shops/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } else { // Create
-      await fetch(`${API_BASE}/shops`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (id && !id.startsWith('temp')) { // Update
+        await safeFetch(`${API_BASE}/shops/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      } else { // Create
+        await safeFetch(`${API_BASE}/shops`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      }
+    } catch (e) {
+      // Fallback Save
+      let shops = getLocal('kk_shops');
+      if (id) {
+        shops = shops.map((s: Shop) => s.id === id ? { ...s, ...data } : s);
+      } else {
+        shops.push({ ...data, id: Date.now().toString() });
+      }
+      setLocal('kk_shops', shops);
     }
   },
 
   deleteShop: async (id: string) => {
-    await fetch(`${API_BASE}/shops/${id}`, { method: 'DELETE' });
+    try {
+      await safeFetch(`${API_BASE}/shops/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      const shops = getLocal('kk_shops').filter((s: Shop) => s.id !== id);
+      setLocal('kk_shops', shops);
+    }
   },
 
   // Menus
   getMenus: async (): Promise<MenuItem[]> => {
     try {
-      const res = await fetch(`${API_BASE}/menus`);
+      const res = await safeFetch(`${API_BASE}/menus`);
       const data = await handleResponse(res);
       return data.map(mapId);
-    } catch (e) { return []; }
+    } catch (e) { return getLocal('kk_menus'); }
   },
 
   subscribeToMenus: (callback: (menus: MenuItem[]) => void) => {
     const fetchMenus = async () => {
       try {
-        const res = await fetch(`${API_BASE}/menus`);
+        const res = await safeFetch(`${API_BASE}/menus`);
         if(res.ok) {
           const data = await res.json();
           callback(data.map(mapId));
         }
-      } catch (e) { }
+      } catch (e) { callback(getLocal('kk_menus')); }
     };
     fetchMenus();
     const interval = setInterval(fetchMenus, 3000);
@@ -137,43 +199,58 @@ export const StorageService = {
 
   saveMenu: async (menu: MenuItem) => {
     const { id, ...data } = menu;
-    if (id && !id.startsWith('temp')) {
-       await fetch(`${API_BASE}/menus/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } else {
-       await fetch(`${API_BASE}/menus`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (id && !id.startsWith('temp')) {
+         await safeFetch(`${API_BASE}/menus/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      } else {
+         await safeFetch(`${API_BASE}/menus`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      }
+    } catch (e) {
+      let menus = getLocal('kk_menus');
+      if (id) {
+        menus = menus.map((m: MenuItem) => m.id === id ? { ...m, ...data } : m);
+      } else {
+        menus.push({ ...data, id: Date.now().toString() });
+      }
+      setLocal('kk_menus', menus);
     }
   },
 
   deleteMenu: async (id: string) => {
-    await fetch(`${API_BASE}/menus/${id}`, { method: 'DELETE' });
+    try {
+      await safeFetch(`${API_BASE}/menus/${id}`, { method: 'DELETE' });
+    } catch (e) {
+       const menus = getLocal('kk_menus').filter((m: MenuItem) => m.id !== id);
+       setLocal('kk_menus', menus);
+    }
   },
 
   // Orders
   getOrders: async (): Promise<Order[]> => {
     try {
-      const res = await fetch(`${API_BASE}/orders`);
+      const res = await safeFetch(`${API_BASE}/orders`);
       const data = await handleResponse(res);
       return data.map(mapId);
-    } catch (e) { return []; }
+    } catch (e) { return getLocal('kk_orders'); }
   },
 
   subscribeToOrders: (callback: (orders: Order[]) => void) => {
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`${API_BASE}/orders`);
+        const res = await safeFetch(`${API_BASE}/orders`);
         if(res.ok) {
           const data = await res.json();
           callback(data.map(mapId));
         }
-      } catch (e) { }
+      } catch (e) { callback(getLocal('kk_orders')); }
     };
     fetchOrders();
     const interval = setInterval(fetchOrders, 2000); // Faster poll for orders
@@ -182,18 +259,28 @@ export const StorageService = {
 
   saveOrder: async (order: Order) => {
     const { id, ...data } = order;
-    if (id && !id.startsWith('temp') && id !== '') {
-      await fetch(`${API_BASE}/orders/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-    } else {
-      await fetch(`${API_BASE}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (id && !id.startsWith('temp') && id !== '') {
+        await safeFetch(`${API_BASE}/orders/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      } else {
+        await safeFetch(`${API_BASE}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      }
+    } catch (e) {
+      let orders = getLocal('kk_orders');
+      if (id && id !== '') {
+        orders = orders.map((o: Order) => o.id === id ? { ...o, ...data } : o);
+      } else {
+        orders.push({ ...data, id: Date.now().toString() });
+      }
+      setLocal('kk_orders', orders);
     }
   },
 };
