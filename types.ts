@@ -41,6 +41,7 @@ export interface OrderItem {
   price: number;
   quantity: number;
   notes?: string;
+  shopId?: string; // ID Warung
 }
 
 export interface Order {

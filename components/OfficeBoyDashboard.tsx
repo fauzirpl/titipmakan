@@ -20,9 +20,10 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   const [newMenu, setNewMenu] = useState<Partial<MenuItem>>({ name: '', price: 0, category: 'Makanan' });
   const [selectedShopForMenu, setSelectedShopForMenu] = useState<string>('');
 
-  // Edit Shop State
+  // Edit States
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [editingShopName, setEditingShopName] = useState('');
+  const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
 
   // Refs for tracking changes
   const prevOrderIds = useRef<Set<string>>(new Set());
@@ -34,10 +35,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
       Notification.requestPermission();
     }
     
-    const unsubscribeShops = StorageService.subscribeToShops((data) => {
-        setShops(data);
-        if (data.length > 0 && !selectedShopForMenu) setSelectedShopForMenu(data[0].id);
-    });
+    // Subscribe without selection logic inside callback to avoid stale closure issues
+    const unsubscribeShops = StorageService.subscribeToShops(setShops);
     const unsubscribeMenus = StorageService.subscribeToMenus(setMenus);
     const unsubscribeOrders = StorageService.subscribeToOrders((allOrders) => {
         setOrders(allOrders.sort((a, b) => b.timestamp - a.timestamp));
@@ -49,6 +48,18 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
         unsubscribeOrders();
     };
   }, []);
+
+  // Separate effect to handle default shop selection validation
+  // This runs whenever shops or selection changes, ensuring we have fresh state
+  useEffect(() => {
+    if (shops.length > 0) {
+      const exists = shops.find(s => s.id === selectedShopForMenu);
+      // If currently selected shop doesn't exist (deleted or initial load), select the first one
+      if (!exists) {
+        setSelectedShopForMenu(shops[0].id);
+      }
+    }
+  }, [shops, selectedShopForMenu]);
 
   // Notification Logic for New Orders
   useEffect(() => {
@@ -134,23 +145,39 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     }
   };
 
-  const addMenu = async () => {
+  // Menu Functions
+  const startEditingMenu = (menu: MenuItem) => {
+    setEditingMenuId(menu.id);
+    setNewMenu({ name: menu.name, price: menu.price, category: menu.category });
+  };
+
+  const cancelEditingMenu = () => {
+    setEditingMenuId(null);
+    setNewMenu({ name: '', price: 0, category: 'Makanan' });
+  };
+
+  const saveMenu = async () => {
     if (!newMenu.name || !newMenu.price || !selectedShopForMenu) return;
-    const menu: MenuItem = {
-      id: '',
+    
+    const menuPayload: MenuItem = {
+      id: editingMenuId || '', // If ID exists, it updates. If empty, it creates.
       shopId: selectedShopForMenu,
       name: newMenu.name,
       price: Number(newMenu.price),
       category: newMenu.category || 'Makanan',
     };
-    await StorageService.saveMenu(menu);
+    
+    await StorageService.saveMenu(menuPayload);
+    
     setNewMenu({ name: '', price: 0, category: 'Makanan' });
-    setToast({ message: 'Menu berhasil ditambah', type: 'success' });
+    setEditingMenuId(null);
+    setToast({ message: editingMenuId ? 'Menu berhasil diperbarui' : 'Menu berhasil ditambah', type: 'success' });
   };
 
   const deleteMenu = async (id: string) => {
     if (confirm('Yakin ingin menghapus menu ini?')) {
       await StorageService.deleteMenu(id);
+      if (editingMenuId === id) cancelEditingMenu();
       setToast({ message: 'Menu berhasil dihapus', type: 'info' });
     }
   };
@@ -265,14 +292,20 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 </div>
                 
                 <div className="space-y-2 mb-4">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="text-sm">
-                       <div className="flex justify-between">
-                         <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                       </div>
-                       {item.notes && <div className="text-xs text-gray-500 italic ml-4">- {item.notes}</div>}
-                    </div>
-                  ))}
+                  {order.items.map((item, idx) => {
+                    const shopName = shops.find(s => s.id === item.shopId)?.name;
+                    return (
+                      <div key={idx} className="text-sm">
+                         <div className="flex justify-between">
+                           <span className="text-gray-700">
+                             {item.quantity}x {item.name}
+                             {shopName && <span className="text-xs text-gray-500 ml-1">({shopName})</span>}
+                           </span>
+                         </div>
+                         {item.notes && <div className="text-xs text-gray-500 italic ml-4">- {item.notes}</div>}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="flex justify-between items-center mb-4 pt-2 border-t border-dashed border-gray-200">
@@ -367,12 +400,16 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                       <td className="px-4 py-3 font-medium text-gray-900">{order.workerName}</td>
                       <td className="px-4 py-3">
                         <div className="max-w-xs">
-                          {order.items.map((i, idx) => (
-                             <div key={idx} className="truncate">
-                               {i.quantity}x {i.name}
-                               {i.notes && <span className="text-gray-400 italic text-xs"> ({i.notes})</span>}
-                             </div>
-                          ))}
+                          {order.items.map((i, idx) => {
+                             const shopName = shops.find(s => s.id === i.shopId)?.name;
+                             return (
+                               <div key={idx} className="truncate">
+                                 {i.quantity}x {i.name}
+                                 {shopName && <span className="text-gray-400 text-xs ml-1">({shopName})</span>}
+                                 {i.notes && <span className="text-gray-400 italic text-xs"> ({i.notes})</span>}
+                               </div>
+                             );
+                          })}
                         </div>
                       </td>
                       <td className="px-4 py-3 font-semibold">Rp{order.totalAmount.toLocaleString()}</td>
@@ -414,9 +451,10 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 <div 
                   key={shop.id} 
                   onClick={() => {
-                    // Only select if not editing
+                    // Only select if not editing shop name
                     if (editingShopId !== shop.id) {
                       setSelectedShopForMenu(shop.id);
+                      cancelEditingMenu(); // Reset menu form when switching shops
                     }
                   }}
                   className={`p-4 rounded-lg border transition-all flex justify-between items-center ${selectedShopForMenu === shop.id ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300'} ${editingShopId === shop.id ? 'bg-yellow-50 border-yellow-300' : 'cursor-pointer'}`}
@@ -460,8 +498,11 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
           <div className="lg:col-span-2">
             {selectedShopForMenu ? (
               <Card title={`Menu: ${shops.find(s => s.id === selectedShopForMenu)?.name}`}>
-                {/* Add Menu Form */}
+                {/* Add/Edit Menu Form */}
                 <div className="grid grid-cols-12 gap-2 mb-6 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  <div className="col-span-12 mb-2 font-medium text-sm text-gray-700">
+                    {editingMenuId ? 'Edit Menu' : 'Tambah Menu Baru'}
+                  </div>
                   <div className="col-span-4">
                     <input 
                       className="w-full px-3 py-2 border rounded text-sm"
@@ -490,8 +531,15 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                       <option value="Camilan">Camilan</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
-                    <Button onClick={addMenu} className="w-full h-full flex items-center justify-center text-sm"><Save size={16} className="mr-1"/> Simpan</Button>
+                  <div className="col-span-2 flex gap-1">
+                    {editingMenuId && (
+                       <Button onClick={cancelEditingMenu} variant="secondary" className="w-full h-full flex items-center justify-center text-sm px-1">
+                          <X size={16} />
+                       </Button>
+                    )}
+                    <Button onClick={saveMenu} className="w-full h-full flex items-center justify-center text-sm">
+                      <Save size={16} className="mr-1"/> {editingMenuId ? 'Update' : 'Simpan'}
+                    </Button>
                   </div>
                 </div>
 
@@ -508,14 +556,19 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                     </thead>
                     <tbody>
                       {menus.filter(m => m.shopId === selectedShopForMenu).map(menu => (
-                        <tr key={menu.id} className="bg-white border-b hover:bg-gray-50">
+                        <tr key={menu.id} className={`border-b hover:bg-gray-50 ${editingMenuId === menu.id ? 'bg-blue-50' : 'bg-white'}`}>
                           <td className="px-4 py-3 font-medium text-gray-900">{menu.name}</td>
                           <td className="px-4 py-3">{menu.category}</td>
                           <td className="px-4 py-3">Rp{menu.price.toLocaleString()}</td>
                           <td className="px-4 py-3 text-right">
-                            <button onClick={() => deleteMenu(menu.id)} className="text-red-500 hover:text-red-700">
-                              <Trash2 size={16} />
-                            </button>
+                             <div className="flex justify-end gap-2">
+                                <button onClick={() => startEditingMenu(menu)} className="text-blue-500 hover:text-blue-700" title="Edit Menu">
+                                     <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => deleteMenu(menu.id)} className="text-red-500 hover:text-red-700" title="Hapus Menu">
+                                  <Trash2 size={16} />
+                                </button>
+                             </div>
                           </td>
                         </tr>
                       ))}

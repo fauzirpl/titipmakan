@@ -276,17 +276,23 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                   <StatusBadge status={order.status} />
                 </div>
                 <div className="space-y-2 mb-3">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span>{item.quantity}x {item.name}</span>
-                        <span>Rp{(item.price * item.quantity).toLocaleString()}</span>
+                  {order.items.map((item, idx) => {
+                    const shopName = shops.find(s => s.id === item.shopId)?.name;
+                    return (
+                      <div key={idx} className="text-sm text-gray-700">
+                        <div className="flex justify-between">
+                          <span>
+                            {item.quantity}x {item.name}
+                            {shopName && <span className="text-xs text-gray-500 ml-1">({shopName})</span>}
+                          </span>
+                          <span>Rp{(item.price * item.quantity).toLocaleString()}</span>
+                        </div>
+                        {item.notes && (
+                          <div className="text-xs text-gray-500 italic ml-4">- Catatan: {item.notes}</div>
+                        )}
                       </div>
-                      {item.notes && (
-                        <div className="text-xs text-gray-500 italic ml-4">- Catatan: {item.notes}</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex justify-between items-center pt-3 border-t border-gray-100">
                   <span className="text-sm font-semibold text-gray-900">Total Bayar</span>
