@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Bell, AlertCircle, Edit, UserCheck, MessageCircle, Wallet } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -169,6 +170,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       id: editingOrderId || '', 
       workerId: user.id,
       workerName: user.name,
+      workerUnit: user.unitKerja || '-',
       items: cart,
       totalAmount,
       status: OrderStatus.PROSES,
@@ -193,15 +195,17 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
      setShowPaymentModal(true);
   };
 
-  const sendWhatsAppProof = () => {
-    if (!paymentTargetOrder || !paymentObInfo || !paymentObInfo.phoneNumber) return;
+  const markAsPaid = async () => {
+    if (!paymentTargetOrder) return;
     
-    const phone = paymentObInfo.phoneNumber.replace(/\D/g, ''); // Remove non-digits
-    const msg = `Halo ${paymentObInfo.name}, saya ${user.name} sudah melakukan pembayaran untuk Order #${paymentTargetOrder.id.slice(0,5)} sebesar Rp${paymentTargetOrder.totalAmount.toLocaleString()}. Mohon dicek. Terima kasih.`;
-    
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
-    setShowPaymentModal(false);
+    try {
+      const updatedOrder = { ...paymentTargetOrder, status: OrderStatus.PAID };
+      await StorageService.saveOrder(updatedOrder);
+      setToast({ message: 'Pembayaran dikonfirmasi! Pramu Bakti akan diberitahu.', type: 'success' });
+      setShowPaymentModal(false);
+    } catch (error) {
+      setToast({ message: 'Gagal mengupdate status pembayaran.', type: 'info' });
+    }
   };
 
   const filteredMenus = selectedShopId 
@@ -231,14 +235,14 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                 <div className="border p-3 rounded bg-gray-50">
                    <p className="text-xs text-gray-500 mb-1">Info Rekening / E-Wallet</p>
                    <p className="font-medium text-gray-800 whitespace-pre-wrap">
-                      {paymentObInfo?.paymentInfo || "Belum ada info pembayaran. Silahkan hubungi via WA."}
+                      {paymentObInfo?.paymentInfo || "Belum ada info pembayaran. Silahkan hubungi petugas."}
                    </p>
                 </div>
 
                 <div className="flex gap-2 mt-4">
                    <Button onClick={() => setShowPaymentModal(false)} variant="secondary" className="flex-1">Tutup</Button>
-                   <Button onClick={sendWhatsAppProof} className="flex-1 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2">
-                      <MessageCircle size={18} /> Kirim Bukti WA
+                   <Button onClick={markAsPaid} className="flex-1 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2">
+                      <CheckCircle size={18} /> Saya Sudah Transfer
                    </Button>
                 </div>
               </div>
@@ -249,7 +253,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Halo, {user.name}</h2>
-          <p className="text-gray-500">Mau makan apa hari ini?</p>
+          <p className="text-sm text-gray-500">{user.unitKerja}</p>
         </div>
         <div className="flex bg-white p-1 rounded-lg border shadow-sm">
           <button 
@@ -370,7 +374,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                     >
                       <option value="" disabled>-- Pilih Petugas --</option>
                       {availableObs.map(ob => (
-                        <option key={ob.id} value={ob.id}>{ob.name}</option>
+                        <option key={ob.id} value={ob.id}>{ob.name} {ob.unitKerja ? `(${ob.unitKerja})` : ''}</option>
                       ))}
                     </select>
                   </div>

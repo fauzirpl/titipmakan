@@ -1,3 +1,4 @@
+
 import { MenuItem, Order, Shop, User, UserRole } from '../types';
 
 // KONFIGURASI URL API UNTUK VERCEL
@@ -62,19 +63,19 @@ export const StorageService = {
     }
   },
   
-  register: async (name: string, email: string, password: string, role: UserRole): Promise<User> => {
+  register: async (name: string, email: string, password: string, role: UserRole, unitKerja: string): Promise<User> => {
     try {
       const res = await safeFetch(`${API_BASE}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password, role, unitKerja }),
       });
       const user = await handleResponse(res);
       const mappedUser = mapId(user);
       localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
       return mappedUser;
     } catch (e) {
-      const newUser = { id: Date.now().toString(), name, email, password, role };
+      const newUser = { id: Date.now().toString(), name, email, password, role, unitKerja };
       const users = getLocal('kk_users');
       users.push(newUser);
       setLocal('kk_users', users);

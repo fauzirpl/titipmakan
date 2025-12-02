@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
@@ -18,6 +19,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   // Profile Form
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber || '');
   const [paymentInfo, setPaymentInfo] = useState(user.paymentInfo || '');
+  const [unitKerja, setUnitKerja] = useState(user.unitKerja || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Forms
@@ -32,6 +34,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
 
   // Refs for tracking changes
   const prevOrderIds = useRef<Set<string>>(new Set());
+  const prevOrderStatuses = useRef<Record<string, OrderStatus>>({});
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
@@ -68,32 +71,50 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     }
   }, [shops, selectedShopForMenu]);
 
-  // Notification Logic for New Orders
+  // Notification Logic for New Orders & Status Changes (PAID)
   useEffect(() => {
     if (isFirstLoad.current) {
       if (orders.length > 0) {
-        orders.forEach(o => prevOrderIds.current.add(o.id));
+        orders.forEach(o => {
+          prevOrderIds.current.add(o.id);
+          prevOrderStatuses.current[o.id] = o.status;
+        });
         isFirstLoad.current = false;
       }
       return;
     }
 
-    let hasNew = false;
     orders.forEach(order => {
+      // Check New Order
       if (!prevOrderIds.current.has(order.id)) {
-        hasNew = true;
         prevOrderIds.current.add(order.id);
+        prevOrderStatuses.current[order.id] = order.status;
         
         const msg = `Pesanan Baru dari ${order.workerName}!`;
-        // In-app Toast
         setToast({ message: msg, type: 'info' });
-        
-        // Browser Notification
         if (Notification.permission === 'granted') {
            new Notification('KantinKantor - Pesanan Baru', {
             body: `${order.workerName} memesan ${order.items.length} item.`,
             icon: '/icon.png'
           });
+        }
+      } 
+      // Check Status Change (Specifically PAID)
+      else {
+        const prevStatus = prevOrderStatuses.current[order.id];
+        if (prevStatus && prevStatus !== order.status) {
+           if (order.status === OrderStatus.PAID) {
+              const msg = `Pesanan ${order.workerName} SUDAH DIBAYAR!`;
+              setToast({ message: msg, type: 'success' });
+              if (Notification.permission === 'granted') {
+                new Notification('KantinKantor - Pembayaran Diterima', {
+                  body: `${order.workerName} telah melakukan pembayaran.`,
+                  icon: '/icon.png'
+                });
+              }
+           }
+           // Update stored status
+           prevOrderStatuses.current[order.id] = order.status;
         }
       }
     });
@@ -104,9 +125,10 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     try {
       await StorageService.updateUser(user.id, {
         phoneNumber,
-        paymentInfo
+        paymentInfo,
+        unitKerja
       });
-      setToast({ message: 'Profil dan Info Pembayaran disimpan', type: 'success' });
+      setToast({ message: 'Profil diperbarui', type: 'success' });
     } catch (e) {
       setToast({ message: 'Gagal menyimpan profil', type: 'info' });
     } finally {
@@ -272,7 +294,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Panel Pramu Bakti</h2>
-          <p className="text-gray-500">Kelola pesanan dan warung</p>
+          <p className="text-gray-500">{user.unitKerja ? user.unitKerja : 'Kelola pesanan dan warung'}</p>
         </div>
         <div className="flex bg-white p-1 rounded-lg border shadow-sm w-full md:w-auto overflow-x-auto">
           <button 
@@ -319,6 +341,17 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 <p className="font-bold">Penting!</p>
                 <p>Isi data ini agar karyawan tahu kemana harus mengirim uang dan bukti transfer.</p>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit Kerja / Lokasi</label>
+              <input 
+                type="text"
+                placeholder="Contoh: Pantry Lantai 2"
+                className="w-full px-3 py-2 border rounded-md"
+                value={unitKerja}
+                onChange={(e) => setUnitKerja(e.target.value)}
+              />
             </div>
 
             <div>
@@ -377,6 +410,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 <div className="flex justify-between items-start mb-3 border-b pb-2 border-gray-100">
                   <div>
                     <h3 className="font-bold text-gray-800">{order.workerName}</h3>
+                    {order.workerUnit && <div className="text-xs font-medium text-blue-600">{order.workerUnit}</div>}
                     <div className="text-xs text-gray-500">Order #{order.id.slice(0, 6)}...</div>
                   </div>
                   <div className="text-right">
@@ -500,7 +534,10 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(order.timestamp).toLocaleString('id-ID')}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{order.workerName}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {order.workerName}
+                        {order.workerUnit && <div className="text-xs text-gray-500">{order.workerUnit}</div>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="max-w-xs">
                           {order.items.map((i, idx) => {

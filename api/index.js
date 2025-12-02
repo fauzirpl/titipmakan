@@ -1,3 +1,4 @@
+
 // api/index.js
 // Ini adalah Serverless Function yang akan dijalankan oleh Vercel
 const express = require('express');
@@ -67,7 +68,8 @@ const UserSchema = new mongoose.Schema({
   role: String,
   phoneNumber: String,
   paymentInfo: String,
-  preferredObId: String
+  preferredObId: String,
+  unitKerja: String
 });
 
 const ShopSchema = new mongoose.Schema({
@@ -86,6 +88,7 @@ const MenuSchema = new mongoose.Schema({
 const OrderSchema = new mongoose.Schema({
   workerId: String,
   workerName: String,
+  workerUnit: String,
   items: Array, 
   totalAmount: Number,
   status: String,
@@ -113,7 +116,7 @@ app.get('/api/users', async (req, res) => {
     const { role } = req.query;
     const filter = role ? { role } : {};
     // Return only public fields
-    const users = await User.find(filter, 'name email role phoneNumber paymentInfo'); 
+    const users = await User.find(filter, 'name email role phoneNumber paymentInfo unitKerja'); 
     res.json(users);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

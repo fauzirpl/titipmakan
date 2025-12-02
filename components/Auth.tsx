@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { StorageService } from '../services/storage';
 import { User, UserRole } from '../types';
@@ -13,6 +14,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [unitKerja, setUnitKerja] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.WORKER);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,12 +33,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           setError('Email atau password salah');
         }
       } else {
-        if (!name || !email || !password) {
+        if (!name || !email || !password || !unitKerja) {
           setError('Mohon lengkapi semua data');
           setIsLoading(false);
           return;
         }
-        const user = await StorageService.register(name, email, password, role);
+        const user = await StorageService.register(name, email, password, role, unitKerja);
         onLogin(user);
       }
     } catch (err) {
@@ -60,12 +62,20 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
-            <Input 
-              label="Nama Lengkap" 
-              placeholder="Contoh: Budi Santoso"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <>
+              <Input 
+                label="Nama Lengkap" 
+                placeholder="Contoh: Budi Santoso"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Input 
+                label="Unit Kerja / Divisi" 
+                placeholder="Contoh: Divisi IT / Lantai 2"
+                value={unitKerja}
+                onChange={(e) => setUnitKerja(e.target.value)}
+              />
+            </>
           )}
           
           <Input 

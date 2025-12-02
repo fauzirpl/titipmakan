@@ -1,3 +1,4 @@
+
 export enum UserRole {
   WORKER = 'WORKER',
   OFFICE_BOY = 'OFFICE_BOY',
@@ -24,6 +25,7 @@ export interface User {
   phoneNumber?: string;     // No WA untuk Pramu Bakti
   paymentInfo?: string;     // Info Rekening/E-wallet untuk Pramu Bakti
   preferredObId?: string;   // ID Pramu Bakti favorit (untuk Karyawan)
+  unitKerja?: string;       // Unit Kerja / Divisi / Lantai
 }
 
 export interface MenuItem {
@@ -63,6 +65,7 @@ export interface Order {
   // New Fields
   assignedObId?: string;   // ID Pramu Bakti yang menangani
   assignedObName?: string; // Nama Pramu Bakti snapshot
+  workerUnit?: string;     // Unit Kerja Pemesan (Snapshot)
 }
 
 export interface CartItem extends OrderItem {
