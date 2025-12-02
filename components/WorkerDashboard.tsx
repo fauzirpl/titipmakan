@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem } from '../types';
 import { StorageService } from '../services/storage';
-import { Button, Card, StatusBadge, Toast } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Bell, Pencil } from 'lucide-react';
+import { Button, Card, StatusBadge, Toast, MenuImage } from './ui';
+import { ShoppingCart, Store, Plus, Minus, Bell, AlertCircle } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -54,20 +54,24 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
     myOrders.forEach(order => {
       const prevOrder = prevOrdersRef.current.find(p => p.id === order.id);
+      
+      // Check Global Status Change
       if (prevOrder && prevOrder.status !== order.status) {
-        // Prepare message
         const msg = `Status pesanan #${order.id.slice(0, 4)}... berubah menjadi: ${order.status}`;
-        
-        // Show In-app Toast
         setToast({ message: msg, type: 'success' });
-        
-        // Show Browser Notification if allowed
         if (Notification.permission === 'granted') {
-          new Notification('Update Pesanan KantinKantor', {
-            body: msg,
-            icon: '/icon.png' // Icon placeholder
-          });
+          new Notification('Update Pesanan KantinKantor', { body: msg, icon: '/icon.png' });
         }
+      }
+
+      // Check Item Status Change (Availability)
+      if (prevOrder) {
+        order.items.forEach((item, idx) => {
+           const prevItem = prevOrder.items[idx];
+           if (prevItem && prevItem.status !== item.status && item.status === 'HABIS') {
+              setToast({ message: `Maaf, menu ${item.name} habis!`, type: 'info' });
+           }
+        });
       }
     });
 
@@ -80,7 +84,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       if (existing) {
         return prev.map(item => item.menuId === menu.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { ...menu, menuId: menu.id, quantity: 1, notes: '' }];
+      return [...prev, { ...menu, menuId: menu.id, quantity: 1, notes: '', status: 'OK' }];
     });
   };
 
@@ -182,17 +186,17 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
               const shopName = shops.find(s => s.id === menu.shopId)?.name || 'Unknown Shop';
               return (
                 <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
-                  <div className="h-32 bg-gray-200 mb-3 rounded-lg overflow-hidden">
-                    <img 
-                      src={`https://picsum.photos/seed/${menu.id}/400/300`} 
-                      alt={menu.name}
-                      className="w-full h-full object-cover"
+                  <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
+                    <MenuImage 
+                      name={menu.name} 
+                      category={menu.category} 
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     />
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-semibold text-gray-900 line-clamp-1">{menu.name}</h3>
-                      <span className="font-bold text-blue-600 text-sm">Rp{menu.price.toLocaleString()}</span>
+                      <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight">{menu.name}</h3>
+                      <span className="font-bold text-blue-600 text-sm whitespace-nowrap ml-2">Rp{menu.price.toLocaleString()}</span>
                     </div>
                     <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
                       <Store size={12} /> {shopName}
@@ -208,7 +212,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
           {/* Sticky Cart Button */}
           {cart.length > 0 && (
-            <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:w-96">
+            <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:w-96 z-40">
               <div className="bg-gray-900 text-white rounded-xl shadow-xl p-4">
                 <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
                   <span className="font-semibold flex items-center gap-2">
@@ -278,18 +282,29 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                 <div className="space-y-2 mb-3">
                   {order.items.map((item, idx) => {
                     const shopName = shops.find(s => s.id === item.shopId)?.name;
+                    const isHabis = item.status === 'HABIS';
+                    
                     return (
-                      <div key={idx} className="text-sm text-gray-700">
+                      <div key={idx} className={`text-sm p-2 rounded ${isHabis ? 'bg-red-50' : ''}`}>
                         <div className="flex justify-between">
-                          <span>
+                          <span className={isHabis ? 'text-gray-400 line-through' : 'text-gray-700'}>
                             {item.quantity}x {item.name}
                             {shopName && <span className="text-xs text-gray-500 ml-1">({shopName})</span>}
                           </span>
-                          <span>Rp{(item.price * item.quantity).toLocaleString()}</span>
+                          <span className={isHabis ? 'text-gray-400 line-through' : ''}>
+                             Rp{(item.price * item.quantity).toLocaleString()}
+                          </span>
                         </div>
-                        {item.notes && (
-                          <div className="text-xs text-gray-500 italic ml-4">- Catatan: {item.notes}</div>
-                        )}
+                        <div className="flex justify-between items-center">
+                          <div className="text-xs text-gray-500 italic ml-4">
+                             {item.notes && <span>- Catatan: {item.notes}</span>}
+                          </div>
+                          {isHabis && (
+                             <span className="text-xs font-bold text-red-600 flex items-center gap-1">
+                               <AlertCircle size={10} /> MAAF HABIS
+                             </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

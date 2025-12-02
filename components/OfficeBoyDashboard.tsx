@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MenuItem, Order, OrderStatus, Shop, User } from '../types';
+import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, Input, StatusBadge, Toast } from './ui';
-import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet } from 'lucide-react';
+import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle } from 'lucide-react';
 
 interface OfficeBoyDashboardProps {
   user: User;
@@ -96,6 +96,33 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     const updatedOrder = { ...order, status: newStatus };
     await StorageService.saveOrder(updatedOrder);
     setToast({ message: `Status order ${order.workerName} diperbarui`, type: 'success' });
+  };
+
+  const toggleItemStatus = async (order: Order, itemIndex: number) => {
+     const newItems = [...order.items];
+     const currentStatus = newItems[itemIndex].status;
+     
+     // Toggle Status
+     newItems[itemIndex].status = currentStatus === 'HABIS' ? 'OK' : 'HABIS';
+
+     // Recalculate Total
+     // Hitung ulang total hanya dari item yang TIDAK 'HABIS'
+     const newTotal = newItems.reduce((acc, curr) => {
+        if (curr.status === 'HABIS') return acc;
+        return acc + (curr.price * curr.quantity);
+     }, 0);
+
+     const updatedOrder: Order = {
+        ...order,
+        items: newItems,
+        totalAmount: newTotal
+     };
+
+     await StorageService.saveOrder(updatedOrder);
+     setToast({ 
+       message: newItems[itemIndex].status === 'HABIS' ? 'Item ditandai HABIS. Total harga dikurangi.' : 'Item tersedia kembali.', 
+       type: 'info' 
+     });
   };
 
   const addShop = async () => {
@@ -294,13 +321,23 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 <div className="space-y-2 mb-4">
                   {order.items.map((item, idx) => {
                     const shopName = shops.find(s => s.id === item.shopId)?.name;
+                    const isHabis = item.status === 'HABIS';
                     return (
-                      <div key={idx} className="text-sm">
-                         <div className="flex justify-between">
-                           <span className="text-gray-700">
+                      <div key={idx} className={`text-sm border rounded p-2 ${isHabis ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-transparent'}`}>
+                         <div className="flex justify-between items-center">
+                           <span className={`text-gray-700 ${isHabis ? 'line-through opacity-60' : ''}`}>
                              {item.quantity}x {item.name}
                              {shopName && <span className="text-xs text-gray-500 ml-1">({shopName})</span>}
                            </span>
+                           {order.status === OrderStatus.PROSES && (
+                             <button 
+                               onClick={() => toggleItemStatus(order, idx)}
+                               className={`px-2 py-0.5 text-xs rounded border transition-colors ${isHabis ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-gray-500 hover:bg-gray-200'}`}
+                               title={isHabis ? "Tandai Tersedia" : "Tandai Habis"}
+                             >
+                               {isHabis ? 'HABIS' : 'Ada?'}
+                             </button>
+                           )}
                          </div>
                          {item.notes && <div className="text-xs text-gray-500 italic ml-4">- {item.notes}</div>}
                       </div>
@@ -402,11 +439,13 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                         <div className="max-w-xs">
                           {order.items.map((i, idx) => {
                              const shopName = shops.find(s => s.id === i.shopId)?.name;
+                             const isHabis = i.status === 'HABIS';
                              return (
-                               <div key={idx} className="truncate">
+                               <div key={idx} className={`truncate ${isHabis ? 'text-red-400 line-through' : ''}`}>
                                  {i.quantity}x {i.name}
                                  {shopName && <span className="text-gray-400 text-xs ml-1">({shopName})</span>}
                                  {i.notes && <span className="text-gray-400 italic text-xs"> ({i.notes})</span>}
+                                 {isHabis && <span className="text-red-500 text-xs font-bold no-underline ml-1"> (HABIS)</span>}
                                </div>
                              );
                           })}

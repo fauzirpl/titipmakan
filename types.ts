@@ -12,6 +12,8 @@ export enum OrderStatus {
   FINISH = 'FINISH',       // Sudah diantar ke pemesan
 }
 
+export type ItemStatus = 'OK' | 'HABIS';
+
 export interface User {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface OrderItem {
   quantity: number;
   notes?: string;
   shopId?: string; // ID Warung
+  status?: ItemStatus; // Status per item (OK = Tersedia, HABIS = Kosong)
 }
 
 export interface Order {

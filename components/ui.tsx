@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ImageOff } from 'lucide-react';
 
 // Button
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline' }> = ({ 
@@ -82,5 +82,50 @@ export const Toast: React.FC<{ message: string; onClose: () => void; type?: 'inf
         <X size={16} />
       </button>
     </div>
+  );
+};
+
+// Helper untuk mendapatkan gambar berdasarkan kata kunci
+const getFoodImageUrl = (name: string, category: string): string => {
+  const lowerName = name.toLowerCase();
+  const lowerCat = category.toLowerCase();
+
+  // Dictionary Kata Kunci -> URL Unsplash
+  // Menggunakan ID foto spesifik agar konsisten dan valid
+  if (lowerName.includes('nasi goreng')) return 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('nasi uduk') || lowerName.includes('nasi kuning')) return 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('nasi')) return 'https://images.unsplash.com/photo-1595955545772-268e6d2d614d?auto=format&fit=crop&w=400&q=80';
+  
+  if (lowerName.includes('mie') || lowerName.includes('bakso') || lowerName.includes('soto')) return 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('ayam') || lowerName.includes('bebek')) return 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('sate')) return 'https://images.unsplash.com/photo-1529563021893-cc83c914d5d3?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('ikan') || lowerName.includes('lele')) return 'https://images.unsplash.com/photo-1535048633722-b5e3c8091894?auto=format&fit=crop&w=400&q=80';
+  
+  // Minuman
+  if (lowerName.includes('kopi')) return 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('teh') || lowerName.includes('es')) return 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=400&q=80';
+  if (lowerName.includes('jus') || lowerName.includes('juice')) return 'https://images.unsplash.com/photo-1603569283847-aa295f0d016a?auto=format&fit=crop&w=400&q=80';
+
+  // Fallback Kategori
+  if (lowerCat.includes('minum')) return 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=400&q=80';
+  if (lowerCat.includes('camilan') || lowerCat.includes('snack')) return 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?auto=format&fit=crop&w=400&q=80';
+
+  // Default Food
+  return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80';
+};
+
+export const MenuImage: React.FC<{ name: string; category: string; className?: string }> = ({ name, category, className }) => {
+  const src = getFoodImageUrl(name, category);
+  return (
+    <img 
+      src={src} 
+      alt={name}
+      className={className}
+      loading="lazy"
+      onError={(e) => {
+        // Fallback jika image gagal load
+        (e.target as HTMLImageElement).src = 'https://placehold.co/400x300?text=Menu';
+      }}
+    />
   );
 };
