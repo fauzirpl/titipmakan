@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MenuItem, Order, OrderStatus, Shop, User, CartItem } from '../types';
+import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Bell, AlertCircle, Edit } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Bell, AlertCircle, Edit, UserCheck, MessageCircle, Wallet } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -18,7 +18,15 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
   const [toast, setToast] = useState<{message: string, type?: 'info'|'success'} | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
-  // Refs for tracking changes to trigger notifications
+  // PB Selection & Payment
+  const [availableObs, setAvailableObs] = useState<User[]>([]);
+  const [selectedObId, setSelectedObId] = useState<string>(user.preferredObId || '');
+  const [saveAsDefaultOb, setSaveAsDefaultOb] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [paymentTargetOrder, setPaymentTargetOrder] = useState<Order | null>(null);
+  const [paymentObInfo, setPaymentObInfo] = useState<User | null>(null);
+
+  // Refs
   const prevOrdersRef = useRef<Order[]>([]);
   const isFirstLoad = useRef(true);
 
@@ -27,11 +35,20 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       Notification.requestPermission();
     }
     
-    // Subscribe to Firestore updates
+    // Fetch available PBs
+    StorageService.getUsersByRole(UserRole.OFFICE_BOY).then(obs => {
+      setAvailableObs(obs);
+      // If user has a preference, select it, otherwise default to first
+      if (user.preferredObId && obs.find(ob => ob.id === user.preferredObId)) {
+        setSelectedObId(user.preferredObId);
+      } else if (obs.length > 0 && !selectedObId) {
+        setSelectedObId(obs[0].id);
+      }
+    });
+
     const unsubscribeShops = StorageService.subscribeToShops(setShops);
     const unsubscribeMenus = StorageService.subscribeToMenus(setMenus);
     const unsubscribeOrders = StorageService.subscribeToOrders((allOrders) => {
-      // Filter client-side for simplicity, or could use query in service
       const userOrders = allOrders.filter(o => o.workerId === user.id).sort((a, b) => b.timestamp - a.timestamp);
       setMyOrders(userOrders);
     });
@@ -41,9 +58,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       unsubscribeMenus();
       unsubscribeOrders();
     };
-  }, [user.id]);
+  }, [user.id, user.preferredObId]);
 
-  // Effect to detect status changes and trigger notifications
   useEffect(() => {
     if (isFirstLoad.current) {
       if (myOrders.length > 0) {
@@ -56,16 +72,15 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
     myOrders.forEach(order => {
       const prevOrder = prevOrdersRef.current.find(p => p.id === order.id);
       
-      // Check Global Status Change
       if (prevOrder && prevOrder.status !== order.status) {
-        const msg = `Status pesanan #${order.id.slice(0, 4)}... berubah menjadi: ${order.status}`;
+        const statusMsg = order.status === OrderStatus.SOLD ? 'Stok Habis / Dibatalkan' : order.status;
+        const msg = `Status pesanan #${order.id.slice(0, 4)}... berubah menjadi: ${statusMsg}`;
         setToast({ message: msg, type: 'success' });
         if (Notification.permission === 'granted') {
           new Notification('Update Pesanan KantinKantor', { body: msg, icon: '/icon.png' });
         }
       }
 
-      // Check Item Status Change (Availability)
       if (prevOrder) {
         order.items.forEach((item, idx) => {
            const prevItem = prevOrder.items[idx];
@@ -112,15 +127,20 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       return;
     }
 
-    // Convert OrderItem to CartItem (ensure shopId exists)
     const itemsForCart: CartItem[] = order.items.map(item => ({
       ...item,
-      shopId: item.shopId || shops[0]?.id || '', // Fallback if data is missing
+      shopId: item.shopId || shops[0]?.id || '',
     }));
 
     setCart(itemsForCart);
     setEditingOrderId(order.id);
     setActiveTab('menu');
+    
+    // Set selected OB based on previous order
+    if (order.assignedObId) {
+       setSelectedObId(order.assignedObId);
+    }
+
     setToast({ message: `Mengedit pesanan #${order.id.slice(0, 4)}. Silahkan update menu.`, type: 'info' });
   };
 
@@ -132,10 +152,19 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
   const placeOrder = async () => {
     if (cart.length === 0) return;
+    if (!selectedObId) {
+      alert("Mohon pilih Pramu Bakti terlebih dahulu.");
+      return;
+    }
+
+    // Save preference if checked
+    if (saveAsDefaultOb && selectedObId !== user.preferredObId) {
+       await StorageService.updateUser(user.id, { preferredObId: selectedObId });
+    }
 
     const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const selectedOb = availableObs.find(ob => ob.id === selectedObId);
     
-    // If editingOrderId exists, we use it to update the existing order
     const orderPayload: Order = {
       id: editingOrderId || '', 
       workerId: user.id,
@@ -144,6 +173,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       totalAmount,
       status: OrderStatus.PROSES,
       timestamp: Date.now(),
+      assignedObId: selectedObId,
+      assignedObName: selectedOb?.name || 'Unknown'
     };
 
     await StorageService.saveOrder(orderPayload);
@@ -152,6 +183,25 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
     setEditingOrderId(null);
     setActiveTab('history');
     setToast({ message: editingOrderId ? 'Pesanan berhasil diperbarui!' : 'Pesanan berhasil dibuat!', type: 'success' });
+  };
+
+  // Payment Logic
+  const handleOpenPayment = (order: Order) => {
+     const ob = availableObs.find(u => u.id === order.assignedObId);
+     setPaymentObInfo(ob || null);
+     setPaymentTargetOrder(order);
+     setShowPaymentModal(true);
+  };
+
+  const sendWhatsAppProof = () => {
+    if (!paymentTargetOrder || !paymentObInfo || !paymentObInfo.phoneNumber) return;
+    
+    const phone = paymentObInfo.phoneNumber.replace(/\D/g, ''); // Remove non-digits
+    const msg = `Halo ${paymentObInfo.name}, saya ${user.name} sudah melakukan pembayaran untuk Order #${paymentTargetOrder.id.slice(0,5)} sebesar Rp${paymentTargetOrder.totalAmount.toLocaleString()}. Mohon dicek. Terima kasih.`;
+    
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    setShowPaymentModal(false);
   };
 
   const filteredMenus = selectedShopId 
@@ -164,6 +214,38 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
     <div className="max-w-4xl mx-auto p-4 pb-24">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
+      {/* Payment Modal */}
+      {showPaymentModal && paymentTargetOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+           <Card className="w-full max-w-md animate-fade-in-up" title="Info Pembayaran">
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                   Silahkan transfer ke Pramu Bakti yang bertugas: <strong>{paymentTargetOrder.assignedObName}</strong>
+                </div>
+                
+                <div className="border p-3 rounded bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">Total Tagihan</p>
+                   <p className="text-xl font-bold text-gray-900">Rp{paymentTargetOrder.totalAmount.toLocaleString()}</p>
+                </div>
+
+                <div className="border p-3 rounded bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">Info Rekening / E-Wallet</p>
+                   <p className="font-medium text-gray-800 whitespace-pre-wrap">
+                      {paymentObInfo?.paymentInfo || "Belum ada info pembayaran. Silahkan hubungi via WA."}
+                   </p>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                   <Button onClick={() => setShowPaymentModal(false)} variant="secondary" className="flex-1">Tutup</Button>
+                   <Button onClick={sendWhatsAppProof} className="flex-1 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2">
+                      <MessageCircle size={18} /> Kirim Bukti WA
+                   </Button>
+                </div>
+              </div>
+           </Card>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Halo, {user.name}</h2>
@@ -253,7 +335,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                   </span>
                   <button onClick={() => setCart([])} className="text-gray-400 hover:text-white text-xs">Kosongkan</button>
                 </div>
-                <div className="max-h-60 overflow-y-auto mb-3 space-y-3 pr-1">
+                
+                <div className="max-h-48 overflow-y-auto mb-3 space-y-3 pr-1">
                   {cart.map(item => (
                     <div key={item.menuId} className="flex flex-col gap-1 border-b border-gray-800 pb-2 last:border-0">
                       <div className="flex justify-between items-start text-sm">
@@ -267,7 +350,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                       </div>
                       <input 
                         type="text"
-                        placeholder="Catatan: pedas, tanpa bawang..."
+                        placeholder="Catatan..."
                         className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded border border-gray-700 focus:border-blue-500 focus:outline-none w-full"
                         value={item.notes || ''}
                         onChange={(e) => updateCartNote(item.menuId, e.target.value)}
@@ -275,6 +358,34 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                     </div>
                   ))}
                 </div>
+
+                {/* PB Selection */}
+                <div className="mb-3 pt-2 border-t border-gray-700">
+                  <label className="text-xs text-gray-400 block mb-1">Pilih Pramu Bakti</label>
+                  <div className="flex gap-2">
+                    <select 
+                      className="flex-1 text-sm bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500"
+                      value={selectedObId}
+                      onChange={(e) => setSelectedObId(e.target.value)}
+                    >
+                      <option value="" disabled>-- Pilih Petugas --</option>
+                      {availableObs.map(ob => (
+                        <option key={ob.id} value={ob.id}>{ob.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                     <input 
+                      type="checkbox" 
+                      id="saveOb" 
+                      className="rounded bg-gray-700 border-gray-600"
+                      checked={saveAsDefaultOb}
+                      onChange={(e) => setSaveAsDefaultOb(e.target.checked)}
+                     />
+                     <label htmlFor="saveOb" className="text-xs text-gray-400 cursor-pointer">Simpan sebagai default</label>
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center pt-2 border-t border-gray-700">
                   <div>
                     <div className="text-xs text-gray-400">Total</div>
@@ -292,24 +403,19 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
       {activeTab === 'history' && (
         <div className="space-y-4">
-           <div className="bg-blue-50 text-blue-800 p-4 rounded-lg flex items-start gap-3">
-             <Bell className="mt-1 flex-shrink-0" size={20} />
-             <div>
-               <p className="font-medium text-sm">Notifikasi Real-time Aktif</p>
-               <p className="text-xs opacity-80">Anda akan menerima notifikasi saat status pesanan berubah.</p>
-             </div>
-           </div>
-
           {myOrders.length === 0 ? (
             <div className="text-center py-10 text-gray-500">Belum ada pesanan. Yuk pesan makan!</div>
           ) : (
             myOrders.map(order => (
-              <Card key={order.id} className={`border-l-4 ${order.status === OrderStatus.FINISH || order.status === OrderStatus.SOLD ? 'border-l-green-500 opacity-90' : 'border-l-blue-500'}`}>
+              <Card key={order.id} className={`border-l-4 ${order.status === OrderStatus.FINISH ? 'border-l-green-500' : order.status === OrderStatus.SOLD ? 'border-l-red-500 opacity-90' : 'border-l-blue-500'}`}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <div className="text-xs text-gray-400 mb-1">{new Date(order.timestamp).toLocaleString('id-ID')}</div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                        <h3 className="font-semibold text-gray-900">Order #{order.id.slice(0, 6)}...</h3>
+                       <div className="flex items-center text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          <UserCheck size={10} className="mr-1"/> {order.assignedObName}
+                       </div>
                        {order.status === OrderStatus.PROSES && (
                          <button 
                            onClick={() => handleEditOrder(order)}
@@ -354,7 +460,17 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
                 </div>
                 <div className="flex justify-between items-center pt-3 border-t border-gray-100">
                   <span className="text-sm font-semibold text-gray-900">Total Bayar</span>
-                  <span className="text-lg font-bold text-blue-600">Rp{order.totalAmount.toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                     <span className="text-lg font-bold text-blue-600">Rp{order.totalAmount.toLocaleString()}</span>
+                     {(order.status === OrderStatus.ORDERED || order.status === OrderStatus.PROSES || order.status === OrderStatus.PICKED_UP) && (
+                        <Button 
+                          onClick={() => handleOpenPayment(order)}
+                          className="px-2 py-1 text-xs flex items-center gap-1 bg-green-600 hover:bg-green-700"
+                        >
+                           <Wallet size={12} /> Bayar / Info
+                        </Button>
+                     )}
+                  </div>
                 </div>
               </Card>
             ))

@@ -7,7 +7,7 @@ export enum OrderStatus {
   PROSES = 'PROSES',       // Baru masuk
   ORDERED = 'ORDERED',     // Sudah dipesan ke warung
   PAID = 'PAID',           // Sudah dibayar talangan/cash
-  SOLD = 'SOLD',           // Barang sudah dibeli/ada
+  SOLD = 'SOLD',           // Stok Habis / Tidak Tersedia (Cancelled)
   PICKED_UP = 'PICKED_UP', // Sudah diambil OB
   FINISH = 'FINISH',       // Sudah diantar ke pemesan
 }
@@ -19,7 +19,11 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string; // In real app, hash this. Here plain for demo.
+  password?: string;
+  // New Fields
+  phoneNumber?: string;     // No WA untuk Pramu Bakti
+  paymentInfo?: string;     // Info Rekening/E-wallet untuk Pramu Bakti
+  preferredObId?: string;   // ID Pramu Bakti favorit (untuk Karyawan)
 }
 
 export interface MenuItem {
@@ -43,8 +47,8 @@ export interface OrderItem {
   price: number;
   quantity: number;
   notes?: string;
-  shopId?: string; // ID Warung
-  status?: ItemStatus; // Status per item (OK = Tersedia, HABIS = Kosong)
+  shopId?: string;
+  status?: ItemStatus;
 }
 
 export interface Order {
@@ -54,8 +58,11 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   status: OrderStatus;
-  timestamp: number; // Tanggal pesanan (Unix Timestamp)
+  timestamp: number;
   notes?: string;
+  // New Fields
+  assignedObId?: string;   // ID Pramu Bakti yang menangani
+  assignedObName?: string; // Nama Pramu Bakti snapshot
 }
 
 export interface CartItem extends OrderItem {

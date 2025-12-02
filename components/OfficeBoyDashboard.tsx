@@ -2,18 +2,23 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, Input, StatusBadge, Toast } from './ui';
-import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle, UserCog, MessageSquare } from 'lucide-react';
 
 interface OfficeBoyDashboardProps {
   user: User;
 }
 
 export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) => {
-  const [activeTab, setActiveTab] = useState<'orders' | 'history' | 'manage'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'history' | 'manage' | 'profile'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [toast, setToast] = useState<{message: string, type?: 'info'|'success'} | null>(null);
+
+  // Profile Form
+  const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber || '');
+  const [paymentInfo, setPaymentInfo] = useState(user.paymentInfo || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Forms
   const [newShopName, setNewShopName] = useState('');
@@ -39,7 +44,11 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     const unsubscribeShops = StorageService.subscribeToShops(setShops);
     const unsubscribeMenus = StorageService.subscribeToMenus(setMenus);
     const unsubscribeOrders = StorageService.subscribeToOrders((allOrders) => {
-        setOrders(allOrders.sort((a, b) => b.timestamp - a.timestamp));
+        // FILTER: Hanya tampilkan order yang ditugaskan ke PB ini
+        const myOrders = allOrders
+          .filter(o => o.assignedObId === user.id)
+          .sort((a, b) => b.timestamp - a.timestamp);
+        setOrders(myOrders);
     });
 
     return () => {
@@ -47,14 +56,12 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
         unsubscribeMenus();
         unsubscribeOrders();
     };
-  }, []);
+  }, [user.id]);
 
   // Separate effect to handle default shop selection validation
-  // This runs whenever shops or selection changes, ensuring we have fresh state
   useEffect(() => {
     if (shops.length > 0) {
       const exists = shops.find(s => s.id === selectedShopForMenu);
-      // If currently selected shop doesn't exist (deleted or initial load), select the first one
       if (!exists) {
         setSelectedShopForMenu(shops[0].id);
       }
@@ -92,6 +99,21 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     });
   }, [orders]);
 
+  const saveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      await StorageService.updateUser(user.id, {
+        phoneNumber,
+        paymentInfo
+      });
+      setToast({ message: 'Profil dan Info Pembayaran disimpan', type: 'success' });
+    } catch (e) {
+      setToast({ message: 'Gagal menyimpan profil', type: 'info' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const updateOrderStatus = async (order: Order, newStatus: OrderStatus) => {
     const updatedOrder = { ...order, status: newStatus };
     await StorageService.saveOrder(updatedOrder);
@@ -106,7 +128,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
      newItems[itemIndex].status = currentStatus === 'HABIS' ? 'OK' : 'HABIS';
 
      // Recalculate Total
-     // Hitung ulang total hanya dari item yang TIDAK 'HABIS'
      const newTotal = newItems.reduce((acc, curr) => {
         if (curr.status === 'HABIS') return acc;
         return acc + (curr.price * curr.quantity);
@@ -127,7 +148,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
 
   const addShop = async () => {
     if (!newShopName) return;
-    const shop: Shop = { id: '', name: newShopName, isOpen: true }; // Firestore generates ID if empty or we handle it in service
+    const shop: Shop = { id: '', name: newShopName, isOpen: true }; 
     await StorageService.saveShop(shop);
     setNewShopName('');
     setToast({ message: 'Warung berhasil ditambah', type: 'success' });
@@ -158,14 +179,9 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   const deleteShop = async (id: string) => {
     if (confirm('Yakin hapus warung ini? Menu didalamnya juga akan terhapus.')) {
       await StorageService.deleteShop(id);
-      
-      // Cleanup menus for this shop
       const shopMenus = menus.filter(m => m.shopId === id);
       shopMenus.forEach(async m => await StorageService.deleteMenu(m.id));
-      
       setToast({ message: 'Warung dihapus', type: 'info' });
-      
-      // If deleted shop was selected, clear selection or select another
       if (selectedShopForMenu === id) {
         setSelectedShopForMenu(shops.find(s => s.id !== id)?.id || '');
       }
@@ -187,7 +203,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     if (!newMenu.name || !newMenu.price || !selectedShopForMenu) return;
     
     const menuPayload: MenuItem = {
-      id: editingMenuId || '', // If ID exists, it updates. If empty, it creates.
+      id: editingMenuId || '', 
       shopId: selectedShopForMenu,
       name: newMenu.name,
       price: Number(newMenu.price),
@@ -195,7 +211,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     };
     
     await StorageService.saveMenu(menuPayload);
-    
     setNewMenu({ name: '', price: 0, category: 'Makanan' });
     setEditingMenuId(null);
     setToast({ message: editingMenuId ? 'Menu berhasil diperbarui' : 'Menu berhasil ditambah', type: 'success' });
@@ -212,40 +227,42 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   const statusFlow = [
     OrderStatus.PROSES,
     OrderStatus.ORDERED,
-    OrderStatus.SOLD,
+    OrderStatus.SOLD, // Sekarang SOLD berarti stok habis/batal, tapi masih dalam flow opsional jika Karyawan batalkan atau OB tandai.
     OrderStatus.PICKED_UP,
     OrderStatus.FINISH
   ];
 
   const getNextStatus = (current: OrderStatus) => {
-    const idx = statusFlow.indexOf(current);
-    if (idx >= 0 && idx < statusFlow.length - 1) return statusFlow[idx + 1];
+    // Custom flow:
+    if (current === OrderStatus.PROSES) return OrderStatus.ORDERED;
+    if (current === OrderStatus.ORDERED) return OrderStatus.PICKED_UP;
+    if (current === OrderStatus.PICKED_UP) return OrderStatus.FINISH;
+    if (current === OrderStatus.PAID) return OrderStatus.PICKED_UP; // After paid, usually picked up
     return null;
   };
 
-  // Split Active and History Orders
-  // "Jika status sold, selesaikan orderan juga" -> Treat SOLD as a finished state in the view
   const activeOrders = orders.filter(o => o.status !== OrderStatus.FINISH && o.status !== OrderStatus.SOLD);
   const historyOrders = orders.filter(o => o.status === OrderStatus.FINISH || o.status === OrderStatus.SOLD);
 
-  // Calculate Status Counts
   const statusCounts = activeOrders.reduce((acc, order) => {
     acc[order.status] = (acc[order.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  // Calculate Total Revenue from History
-  const totalRevenue = historyOrders.reduce((acc, order) => acc + order.totalAmount, 0);
+  const totalRevenue = historyOrders.reduce((acc, order) => {
+    // Jangan hitung revenue jika status SOLD (batal/habis)
+    if (order.status === OrderStatus.SOLD) return acc;
+    return acc + order.totalAmount;
+  }, 0);
 
   const statConfig: Record<string, { label: string, color: string, bg: string }> = {
     [OrderStatus.PROSES]: { label: 'Diproses', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
     [OrderStatus.ORDERED]: { label: 'Dipesan', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
     [OrderStatus.PAID]: { label: 'Dibayar', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-    [OrderStatus.SOLD]: { label: 'Terbeli', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
+    [OrderStatus.SOLD]: { label: 'Habis/Batal', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
     [OrderStatus.PICKED_UP]: { label: 'Diambil', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
   };
 
-  // Removed SOLD from active statuses list since it now moves to history
   const activeStatuses = [OrderStatus.PROSES, OrderStatus.ORDERED, OrderStatus.PAID, OrderStatus.PICKED_UP];
 
   return (
@@ -263,7 +280,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
             className={`flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'orders' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             <div className="flex items-center justify-center gap-2">
-              <ClipboardList size={16} /> Pesanan Aktif ({activeOrders.length})
+              <ClipboardList size={16} /> Pesanan ({activeOrders.length})
             </div>
           </button>
           <button 
@@ -282,18 +299,66 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
               <Store size={16} /> Kelola Warung
             </div>
           </button>
+           <button 
+            onClick={() => setActiveTab('profile')}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+             <div className="flex items-center justify-center gap-2">
+              <UserCog size={16} /> Profil
+            </div>
+          </button>
         </div>
       </div>
+
+      {activeTab === 'profile' && (
+        <Card title="Pengaturan Profil & Pembayaran" className="max-w-2xl mx-auto">
+          <div className="space-y-4">
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm text-yellow-800 flex gap-2">
+              <MessageSquare size={20} />
+              <div>
+                <p className="font-bold">Penting!</p>
+                <p>Isi data ini agar karyawan tahu kemana harus mengirim uang dan bukti transfer.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nomor WhatsApp (62xxx)</label>
+              <input 
+                type="text"
+                placeholder="Contoh: 628123456789"
+                className="w-full px-3 py-2 border rounded-md"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Gunakan format internasional tanpa '+' (cth: 628123...).</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Info Pembayaran (Bank / E-Wallet)</label>
+              <textarea 
+                placeholder="Contoh: BCA 1234567890 a.n Budi, atau Gopay 0812..."
+                className="w-full px-3 py-2 border rounded-md h-24"
+                value={paymentInfo}
+                onChange={(e) => setPaymentInfo(e.target.value)}
+              />
+            </div>
+
+            <Button onClick={saveProfile} disabled={isSavingProfile}>
+              {isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {activeTab === 'orders' && (
         <div className="space-y-4">
           <div className="bg-blue-50 text-blue-800 p-3 rounded-lg flex items-center gap-3 text-sm mb-2">
              <Bell className="flex-shrink-0" size={18} />
-             <span>Notifikasi aktif: Anda akan diberitahu jika ada pesanan baru masuk.</span>
+             <span>Notifikasi aktif: Anda akan diberitahu jika ada pesanan baru untuk Anda.</span>
            </div>
 
            {/* Status Summary Cards */}
-           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
+           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {activeStatuses.map(status => {
                const config = statConfig[status];
                const count = statusCounts[status] || 0;
@@ -359,7 +424,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                     onChange={(e) => updateOrderStatus(order, e.target.value as OrderStatus)}
                   >
                      {Object.values(OrderStatus).map(s => (
-                       <option key={s} value={s}>{s}</option>
+                       <option key={s} value={s}>{s === OrderStatus.SOLD ? 'Stok Habis / Batal' : s}</option>
                      ))}
                   </select>
                   
@@ -386,7 +451,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
             ))}
             {activeOrders.length === 0 && (
               <p className="text-gray-500 col-span-full text-center py-10 bg-white rounded-lg border border-dashed">
-                Tidak ada pesanan aktif saat ini.
+                Tidak ada pesanan aktif untuk Anda saat ini.
               </p>
             )}
           </div>
@@ -395,7 +460,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
 
       {activeTab === 'history' && (
         <div className="space-y-6">
-          {/* History Summary Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
               <div>
@@ -418,7 +482,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
             </div>
           </div>
 
-          <Card title="Riwayat Pesanan Selesai & Terbeli (SOLD)">
+          <Card title="Riwayat Pesanan Selesai & Batal/Habis">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-gray-500">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50">
@@ -461,7 +525,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                   ))}
                   {historyOrders.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400">Belum ada riwayat pesanan selesai.</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400">Belum ada riwayat.</td>
                     </tr>
                   )}
                 </tbody>
@@ -473,7 +537,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
 
       {activeTab === 'manage' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Shop List Column */}
           <div className="lg:col-span-1 space-y-6">
             <Card title="Tambah Warung">
               <div className="flex gap-2">
@@ -492,10 +555,9 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                 <div 
                   key={shop.id} 
                   onClick={() => {
-                    // Only select if not editing shop name
                     if (editingShopId !== shop.id) {
                       setSelectedShopForMenu(shop.id);
-                      cancelEditingMenu(); // Reset menu form when switching shops
+                      cancelEditingMenu(); 
                     }
                   }}
                   className={`p-4 rounded-lg border transition-all flex justify-between items-center ${selectedShopForMenu === shop.id ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300'} ${editingShopId === shop.id ? 'bg-yellow-50 border-yellow-300' : 'cursor-pointer'}`}
@@ -531,15 +593,12 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                   )}
                 </div>
               ))}
-              {shops.length === 0 && <p className="text-sm text-gray-500 italic">Belum ada warung.</p>}
             </div>
           </div>
 
-          {/* Menu Manager Column */}
           <div className="lg:col-span-2">
             {selectedShopForMenu ? (
               <Card title={`Menu: ${shops.find(s => s.id === selectedShopForMenu)?.name}`}>
-                {/* Add/Edit Menu Form */}
                 <div className="grid grid-cols-12 gap-2 mb-6 bg-gray-50 p-3 rounded-lg border border-gray-100">
                   <div className="col-span-12 mb-2 font-medium text-sm text-gray-700">
                     {editingMenuId ? 'Edit Menu' : 'Tambah Menu Baru'}
@@ -584,7 +643,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                   </div>
                 </div>
 
-                {/* Menu List Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
@@ -613,11 +671,6 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                           </td>
                         </tr>
                       ))}
-                      {menus.filter(m => m.shopId === selectedShopForMenu).length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-6 text-center text-gray-400">Belum ada menu di warung ini.</td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>

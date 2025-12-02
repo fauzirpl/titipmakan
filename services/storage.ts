@@ -1,15 +1,11 @@
 import { MenuItem, Order, Shop, User, UserRole } from '../types';
 
 // KONFIGURASI URL API UNTUK VERCEL
-// Logic:
-// 1. Jika running di localhost (Development), gunakan http://localhost:5000/api
-// 2. Jika running di Vercel (Production), gunakan relative path '/api' karena frontend & backend di domain sama.
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = isLocalhost 
   ? (process.env.REACT_APP_API_URL || 'http://localhost:5000') + '/api'
   : '/api';
 
-// Helper untuk menghandle response
 const handleResponse = async (res: Response) => {
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Terjadi kesalahan' }));
@@ -18,21 +14,17 @@ const handleResponse = async (res: Response) => {
   return res.json();
 };
 
-// Helper untuk mapping _id (MongoDB) ke id (Frontend)
 const mapId = (item: any) => {
   if (!item) return item;
   const { _id, ...rest } = item;
   return { id: _id, ...rest };
 };
 
-// Fallback Local Storage Helper
 const getLocal = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
 const setLocal = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
 
-// Flag untuk menandakan mode offline/fallback
 let isOfflineMode = false;
 
-// Wrapper fetch yang otomatis fallback ke localStorage jika server mati
 const safeFetch = async (url: string, options?: RequestInit) => {
   if (isOfflineMode) throw new Error("Offline Mode");
   try {
@@ -46,7 +38,7 @@ const safeFetch = async (url: string, options?: RequestInit) => {
 };
 
 export const StorageService = {
-  // Auth
+  // Auth & Users
   login: async (email: string, password: string): Promise<User | null> => {
     try {
       const res = await safeFetch(`${API_BASE}/login`, {
@@ -54,15 +46,12 @@ export const StorageService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      
       if (res.status === 401) return null;
-      
       const user = await handleResponse(res);
       const mappedUser = mapId(user);
       localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
       return mappedUser;
     } catch (e) {
-      // Fallback Login Local
       const users = getLocal('kk_users');
       const user = users.find((u: User) => u.email === email && u.password === password);
       if (user) {
@@ -85,13 +74,54 @@ export const StorageService = {
       localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
       return mappedUser;
     } catch (e) {
-      // Fallback Register Local
       const newUser = { id: Date.now().toString(), name, email, password, role };
       const users = getLocal('kk_users');
       users.push(newUser);
       setLocal('kk_users', users);
       localStorage.setItem('kk_current_user', JSON.stringify(newUser));
       return newUser;
+    }
+  },
+
+  updateUser: async (id: string, data: Partial<User>): Promise<User> => {
+    try {
+      const res = await safeFetch(`${API_BASE}/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const user = await handleResponse(res);
+      const mappedUser = mapId(user);
+      // Update local storage if it's the current user
+      const currentUser = StorageService.getCurrentUser();
+      if (currentUser && currentUser.id === id) {
+        localStorage.setItem('kk_current_user', JSON.stringify(mappedUser));
+      }
+      return mappedUser;
+    } catch (e) {
+      const users = getLocal('kk_users');
+      const idx = users.findIndex((u: User) => u.id === id);
+      if (idx > -1) {
+        users[idx] = { ...users[idx], ...data };
+        setLocal('kk_users', users);
+        const currentUser = StorageService.getCurrentUser();
+        if (currentUser && currentUser.id === id) {
+             localStorage.setItem('kk_current_user', JSON.stringify(users[idx]));
+        }
+        return users[idx];
+      }
+      throw e;
+    }
+  },
+
+  getUsersByRole: async (role: UserRole): Promise<User[]> => {
+    try {
+      const res = await safeFetch(`${API_BASE}/users?role=${role}`);
+      const data = await handleResponse(res);
+      return data.map(mapId);
+    } catch (e) {
+      const users = getLocal('kk_users');
+      return users.filter((u: User) => u.role === role);
     }
   },
 
@@ -110,12 +140,9 @@ export const StorageService = {
       const res = await safeFetch(`${API_BASE}/shops`);
       const data = await handleResponse(res);
       return data.map(mapId);
-    } catch (e) {
-       return getLocal('kk_shops');
-    }
+    } catch (e) { return getLocal('kk_shops'); }
   },
 
-  // Menggunakan Polling untuk simulasi Real-time pada MongoDB standar
   subscribeToShops: (callback: (shops: Shop[]) => void) => {
     const fetchShops = async () => {
       try {
@@ -123,29 +150,25 @@ export const StorageService = {
         if(res.ok) {
           const data = await res.json();
           callback(data.map(mapId));
-          isOfflineMode = false; // Reset jika berhasil connect lagi
+          isOfflineMode = false;
         }
-      } catch (e) { 
-        // Fallback
-        callback(getLocal('kk_shops'));
-      }
+      } catch (e) { callback(getLocal('kk_shops')); }
     };
-    
-    fetchShops(); // Initial fetch
-    const interval = setInterval(fetchShops, 3000); // Poll every 3s
+    fetchShops();
+    const interval = setInterval(fetchShops, 3000);
     return () => clearInterval(interval);
   },
 
   saveShop: async (shop: Shop) => {
     const { id, ...data } = shop;
     try {
-      if (id && !id.startsWith('temp')) { // Update
+      if (id && !id.startsWith('temp')) {
         await safeFetch(`${API_BASE}/shops/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         });
-      } else { // Create
+      } else {
         await safeFetch(`${API_BASE}/shops`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -153,7 +176,6 @@ export const StorageService = {
         });
       }
     } catch (e) {
-      // Fallback Save
       let shops = getLocal('kk_shops');
       if (id) {
         shops = shops.map((s: Shop) => s.id === id ? { ...s, ...data } : s);
@@ -253,7 +275,7 @@ export const StorageService = {
       } catch (e) { callback(getLocal('kk_orders')); }
     };
     fetchOrders();
-    const interval = setInterval(fetchOrders, 2000); // Faster poll for orders
+    const interval = setInterval(fetchOrders, 2000);
     return () => clearInterval(interval);
   },
 
