@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage, Input } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, CheckCircle, UserCog } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -11,6 +11,10 @@ interface WorkerDashboardProps {
 
 export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUpdate }) => {
   const [activeTab, setActiveTab] = useState<'menu' | 'history' | 'profile'>('menu');
+  
+  // View Mode: 'items' = list menu biasa, 'shops' = list warung dulu
+  const [menuViewMode, setMenuViewMode] = useState<'items' | 'shops'>('items');
+  
   const [shops, setShops] = useState<Shop[]>([]);
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -149,6 +153,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     setCart(itemsForCart);
     setEditingOrderId(order.id);
     setActiveTab('menu');
+    setMenuViewMode('items'); // Force switch to items view
     
     // Set selected OB based on previous order
     if (order.assignedObId) {
@@ -239,11 +244,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     }
   };
 
+  // Logic untuk menampilkan menu
   const filteredMenus = selectedShopId 
     ? menus.filter(m => m.shopId === selectedShopId) 
     : menus;
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  // Fungsi untuk berpindah mode dan mereset filter
+  const handleModeChange = (mode: 'items' | 'shops') => {
+    setMenuViewMode(mode);
+    setSelectedShopId(null);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4 pb-24">
@@ -360,54 +372,150 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
              </div>
           )}
 
-          {/* Shop Filter */}
-          <div className="flex overflow-x-auto gap-2 mb-6 pb-2 hide-scrollbar">
+          {/* Toggle View Mode Buttons */}
+          <div className="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
             <button 
-              onClick={() => setSelectedShopId(null)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border ${!selectedShopId ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200'}`}
+              onClick={() => handleModeChange('items')} 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'items' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              Semua
+              <Utensils size={14} /> Berdasarkan Menu
             </button>
-            {shops.map(shop => (
-              <button
-                key={shop.id}
-                onClick={() => setSelectedShopId(shop.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border ${selectedShopId === shop.id ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200'}`}
-              >
-                {shop.name}
-              </button>
-            ))}
+            <button 
+              onClick={() => handleModeChange('shops')} 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'shops' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Store size={14} /> Berdasarkan Warung
+            </button>
           </div>
 
-          {/* Menu List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
-            {filteredMenus.map(menu => {
-              const shopName = shops.find(s => s.id === menu.shopId)?.name || 'Unknown Shop';
-              return (
-                <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
-                  <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
-                    <MenuImage 
-                      name={menu.name} 
-                      category={menu.category} 
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    />
+          {/* MODE: BERDASARKAN ITEMS (Filter Horizontal Biasa) */}
+          {menuViewMode === 'items' && (
+            <>
+              {/* Shop Filter Pills */}
+              <div className="flex overflow-x-auto gap-2 mb-6 pb-2 hide-scrollbar">
+                <button 
+                  onClick={() => setSelectedShopId(null)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border ${!selectedShopId ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200'}`}
+                >
+                  Semua
+                </button>
+                {shops.map(shop => (
+                  <button
+                    key={shop.id}
+                    onClick={() => setSelectedShopId(shop.id)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border ${selectedShopId === shop.id ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200'}`}
+                  >
+                    {shop.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Menu Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
+                {filteredMenus.map(menu => {
+                  const shopName = shops.find(s => s.id === menu.shopId)?.name || 'Unknown Shop';
+                  return (
+                    <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
+                      <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
+                        <MenuImage 
+                          name={menu.name} 
+                          category={menu.category} 
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-1">
+                          <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight">{menu.name}</h3>
+                          <span className="font-bold text-blue-600 text-sm whitespace-nowrap ml-2">Rp{menu.price.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
+                          <Store size={12} /> {shopName}
+                        </p>
+                      </div>
+                      <Button onClick={() => addToCart(menu)} className="w-full text-sm py-1.5 mt-auto">
+                        + Tambah
+                      </Button>
+                    </Card>
+                  );
+                })}
+                {filteredMenus.length === 0 && (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                     Tidak ada menu ditemukan.
                   </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight">{menu.name}</h3>
-                      <span className="font-bold text-blue-600 text-sm whitespace-nowrap ml-2">Rp{menu.price.toLocaleString()}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
-                      <Store size={12} /> {shopName}
-                    </p>
-                  </div>
-                  <Button onClick={() => addToCart(menu)} className="w-full text-sm py-1.5 mt-auto">
-                    + Tambah
-                  </Button>
-                </Card>
-              );
-            })}
-          </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* MODE: BERDASARKAN WARUNG (Grid Warung -> Grid Menu) */}
+          {menuViewMode === 'shops' && (
+            <>
+              {!selectedShopId ? (
+                // View 1: Daftar Warung
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-20">
+                   {shops.map(shop => (
+                     <Card 
+                        key={shop.id} 
+                        className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-8 px-4 text-center group"
+                        onClick={() => setSelectedShopId(shop.id)} // Select shop and show its menus
+                     >
+                        <div className="bg-blue-50 p-4 rounded-full mb-3 group-hover:bg-blue-100 transition-colors">
+                           <Store size={32} className="text-blue-600" />
+                        </div>
+                        <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{shop.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{menus.filter(m => m.shopId === shop.id).length} Menu</p>
+                     </Card>
+                   ))}
+                   {shops.length === 0 && (
+                      <div className="col-span-full text-center py-10 text-gray-500">
+                        Belum ada warung terdaftar.
+                      </div>
+                   )}
+                </div>
+              ) : (
+                // View 2: Menu dalam Warung (Reusing the same grid style)
+                <>
+                   <div className="mb-4 flex items-center gap-2">
+                     <Button variant="secondary" onClick={() => setSelectedShopId(null)} className="px-2 py-1 text-xs">
+                        <ArrowLeft size={16} className="mr-1"/> Kembali ke Daftar Warung
+                     </Button>
+                     <h3 className="font-bold text-xl ml-2">{shops.find(s => s.id === selectedShopId)?.name}</h3>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
+                     {filteredMenus.map(menu => (
+                       <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
+                         <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
+                           <MenuImage 
+                             name={menu.name} 
+                             category={menu.category} 
+                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                           />
+                         </div>
+                         <div className="flex-1">
+                           <div className="flex justify-between items-start mb-1">
+                             <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight">{menu.name}</h3>
+                             <span className="font-bold text-blue-600 text-sm whitespace-nowrap ml-2">Rp{menu.price.toLocaleString()}</span>
+                           </div>
+                           <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
+                             <Store size={12} /> {shops.find(s => s.id === menu.shopId)?.name}
+                           </p>
+                         </div>
+                         <Button onClick={() => addToCart(menu)} className="w-full text-sm py-1.5 mt-auto">
+                           + Tambah
+                         </Button>
+                       </Card>
+                     ))}
+                     {filteredMenus.length === 0 && (
+                        <div className="col-span-full text-center py-12 text-gray-500 border rounded-lg border-dashed">
+                           Warung ini belum memiliki menu.
+                        </div>
+                     )}
+                   </div>
+                </>
+              )}
+            </>
+          )}
 
           {/* Sticky Cart Button */}
           {cart.length > 0 && (

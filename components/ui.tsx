@@ -32,8 +32,8 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
 );
 
 // Card
-export const Card: React.FC<{ children: React.ReactNode; className?: string; title?: string }> = ({ children, className = '', title }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`}>
+export const Card: React.FC<React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode; className?: string; title?: string }> = ({ children, className = '', title, ...props }) => (
+  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`} {...props}>
     {title && <div className="px-4 py-3 border-b border-gray-100 font-semibold bg-gray-50">{title}</div>}
     <div className="p-4">{children}</div>
   </div>
