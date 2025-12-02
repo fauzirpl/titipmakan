@@ -22,6 +22,10 @@ const App: React.FC = () => {
     setCurrentUser(user);
   };
 
+  const handleUserUpdate = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+  };
+
   const handleLogout = () => {
     StorageService.logout();
     setCurrentUser(null);
@@ -66,9 +70,9 @@ const App: React.FC = () => {
       {/* Content */}
       <main className="py-6">
         {currentUser.role === UserRole.WORKER ? (
-          <WorkerDashboard user={currentUser} />
+          <WorkerDashboard user={currentUser} onUserUpdate={handleUserUpdate} />
         ) : (
-          <OfficeBoyDashboard user={currentUser} />
+          <OfficeBoyDashboard user={currentUser} onUserUpdate={handleUserUpdate} />
         )}
       </main>
     </div>

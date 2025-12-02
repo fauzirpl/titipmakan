@@ -1,22 +1,22 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
-import { Button, Card, StatusBadge, Toast, MenuImage } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, CheckCircle } from 'lucide-react';
+import { Button, Card, StatusBadge, Toast, MenuImage, Input } from './ui';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, CheckCircle, UserCog } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
+  onUserUpdate: (user: User) => void;
 }
 
-export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
-  const [activeTab, setActiveTab] = useState<'menu' | 'history'>('menu');
+export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUpdate }) => {
+  const [activeTab, setActiveTab] = useState<'menu' | 'history' | 'profile'>('menu');
   const [shops, setShops] = useState<Shop[]>([]);
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{message: string, type?: 'info'|'success'} | null>(null);
+  const [toast, setToast] = useState<{message: string, type?: 'info'|'success'|'danger'} | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // PB Selection & Payment
@@ -26,6 +26,12 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [paymentTargetOrder, setPaymentTargetOrder] = useState<Order | null>(null);
   const [paymentObInfo, setPaymentObInfo] = useState<User | null>(null);
+
+  // Profile Edit State
+  const [profileName, setProfileName] = useState(user.name);
+  const [profileUnit, setProfileUnit] = useState(user.unitKerja || '');
+  const [profilePreferredOb, setProfilePreferredOb] = useState(user.preferredObId || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Refs
   const prevOrdersRef = useRef<Order[]>([]);
@@ -39,7 +45,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
     // Fetch available PBs
     StorageService.getUsersByRole(UserRole.OFFICE_BOY).then(obs => {
       setAvailableObs(obs);
-      // If user has a preference, select it, otherwise default to first
+      // If user has a preference, select it for cart default
       if (user.preferredObId && obs.find(ob => ob.id === user.preferredObId)) {
         setSelectedObId(user.preferredObId);
       } else if (obs.length > 0 && !selectedObId) {
@@ -60,6 +66,13 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       unsubscribeOrders();
     };
   }, [user.id, user.preferredObId]);
+
+  useEffect(() => {
+    // Sync profile state when user prop updates
+    setProfileName(user.name);
+    setProfileUnit(user.unitKerja || '');
+    setProfilePreferredOb(user.preferredObId || '');
+  }, [user]);
 
   useEffect(() => {
     if (isFirstLoad.current) {
@@ -160,7 +173,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
     // Save preference if checked
     if (saveAsDefaultOb && selectedObId !== user.preferredObId) {
-       await StorageService.updateUser(user.id, { preferredObId: selectedObId });
+       const updated = await StorageService.updateUser(user.id, { preferredObId: selectedObId });
+       onUserUpdate(updated);
     }
 
     const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -170,7 +184,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       id: editingOrderId || '', 
       workerId: user.id,
       workerName: user.name,
-      workerUnit: user.unitKerja || '-',
+      workerUnit: user.unitKerja || '-', // Use latest unit from props
       items: cart,
       totalAmount,
       status: OrderStatus.PROSES,
@@ -187,7 +201,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
     setToast({ message: editingOrderId ? 'Pesanan berhasil diperbarui!' : 'Pesanan berhasil dibuat!', type: 'success' });
   };
 
-  // Payment Logic
   const handleOpenPayment = (order: Order) => {
      const ob = availableObs.find(u => u.id === order.assignedObId);
      setPaymentObInfo(ob || null);
@@ -197,7 +210,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
   const markAsPaid = async () => {
     if (!paymentTargetOrder) return;
-    
     try {
       const updatedOrder = { ...paymentTargetOrder, status: OrderStatus.PAID };
       await StorageService.saveOrder(updatedOrder);
@@ -205,6 +217,25 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
       setShowPaymentModal(false);
     } catch (error) {
       setToast({ message: 'Gagal mengupdate status pembayaran.', type: 'info' });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      const updated = await StorageService.updateUser(user.id, {
+        name: profileName,
+        unitKerja: profileUnit,
+        preferredObId: profilePreferredOb
+      });
+      onUserUpdate(updated);
+      setToast({ message: 'Profil berhasil disimpan.', type: 'success' });
+      // Update local cart selection if changed
+      if (profilePreferredOb) setSelectedObId(profilePreferredOb);
+    } catch (e) {
+      setToast({ message: 'Gagal menyimpan profil.', type: 'danger' });
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -216,7 +247,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
 
   return (
     <div className="max-w-4xl mx-auto p-4 pb-24">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type || 'info'} onClose={() => setToast(null)} />}
       
       {/* Payment Modal */}
       {showPaymentModal && paymentTargetOrder && (
@@ -258,18 +289,67 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user }) => {
         <div className="flex bg-white p-1 rounded-lg border shadow-sm">
           <button 
             onClick={() => setActiveTab('menu')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'menu' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'menu' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             Menu
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
           >
             Riwayat
           </button>
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
+            title="Profil Saya"
+          >
+            <UserCog size={16} /> <span className="hidden sm:inline">Profil</span>
+          </button>
         </div>
       </div>
+
+      {activeTab === 'profile' && (
+        <Card title="Profil Saya" className="max-w-lg mx-auto">
+          <div className="space-y-4">
+            <Input 
+              label="Nama Lengkap" 
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="Contoh: Budi Santoso"
+            />
+            
+            <Input 
+              label="Unit Kerja / Divisi" 
+              value={profileUnit}
+              onChange={(e) => setProfileUnit(e.target.value)}
+              placeholder="Contoh: Divisi IT / Lantai 2"
+            />
+            <p className="text-xs text-gray-500 -mt-2 mb-2">Info ini akan muncul di pesanan agar Pramu Bakti mudah mengantar makanan.</p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pramu Bakti Langganan</label>
+              <select 
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={profilePreferredOb}
+                onChange={(e) => setProfilePreferredOb(e.target.value)}
+              >
+                <option value="">-- Pilih Pramu Bakti --</option>
+                {availableObs.map(ob => (
+                  <option key={ob.id} value={ob.id}>{ob.name} {ob.unitKerja ? `(${ob.unitKerja})` : ''}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Pilihan ini akan otomatis terpilih saat Anda memesan.</p>
+            </div>
+
+            <div className="pt-4 border-t">
+              <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="w-full">
+                {isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {activeTab === 'menu' && (
         <>

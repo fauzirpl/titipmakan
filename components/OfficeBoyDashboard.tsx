@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
@@ -7,9 +6,10 @@ import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChar
 
 interface OfficeBoyDashboardProps {
   user: User;
+  onUserUpdate: (user: User) => void;
 }
 
-export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) => {
+export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, onUserUpdate }) => {
   const [activeTab, setActiveTab] = useState<'orders' | 'history' | 'manage' | 'profile'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
@@ -123,11 +123,12 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   const saveProfile = async () => {
     setIsSavingProfile(true);
     try {
-      await StorageService.updateUser(user.id, {
+      const updated = await StorageService.updateUser(user.id, {
         phoneNumber,
         paymentInfo,
         unitKerja
       });
+      onUserUpdate(updated);
       setToast({ message: 'Profil diperbarui', type: 'success' });
     } catch (e) {
       setToast({ message: 'Gagal menyimpan profil', type: 'info' });

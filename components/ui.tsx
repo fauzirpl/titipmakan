@@ -67,13 +67,15 @@ export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 };
 
 // Toast Notification
-export const Toast: React.FC<{ message: string; onClose: () => void; type?: 'info' | 'success' }> = ({ message, onClose, type = 'info' }) => {
+export const Toast: React.FC<{ message: string; onClose: () => void; type?: 'info' | 'success' | 'danger' }> = ({ message, onClose, type = 'info' }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bg = type === 'success' ? 'bg-green-600' : 'bg-blue-600';
+  let bg = 'bg-blue-600';
+  if (type === 'success') bg = 'bg-green-600';
+  if (type === 'danger') bg = 'bg-red-600';
 
   return (
     <div className={`fixed top-4 right-4 z-50 ${bg} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-down max-w-sm`}>
