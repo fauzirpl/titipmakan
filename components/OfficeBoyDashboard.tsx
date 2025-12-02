@@ -224,8 +224,9 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
   };
 
   // Split Active and History Orders
-  const activeOrders = orders.filter(o => o.status !== OrderStatus.FINISH);
-  const historyOrders = orders.filter(o => o.status === OrderStatus.FINISH);
+  // "Jika status sold, selesaikan orderan juga" -> Treat SOLD as a finished state in the view
+  const activeOrders = orders.filter(o => o.status !== OrderStatus.FINISH && o.status !== OrderStatus.SOLD);
+  const historyOrders = orders.filter(o => o.status === OrderStatus.FINISH || o.status === OrderStatus.SOLD);
 
   // Calculate Status Counts
   const statusCounts = activeOrders.reduce((acc, order) => {
@@ -244,7 +245,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
     [OrderStatus.PICKED_UP]: { label: 'Diambil', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
   };
 
-  const activeStatuses = [OrderStatus.PROSES, OrderStatus.ORDERED, OrderStatus.PAID, OrderStatus.SOLD, OrderStatus.PICKED_UP];
+  // Removed SOLD from active statuses list since it now moves to history
+  const activeStatuses = [OrderStatus.PROSES, OrderStatus.ORDERED, OrderStatus.PAID, OrderStatus.PICKED_UP];
 
   return (
     <div className="max-w-6xl mx-auto p-4">
@@ -291,7 +293,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
            </div>
 
            {/* Status Summary Cards */}
-           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
             {activeStatuses.map(status => {
                const config = statConfig[status];
                const count = statusCounts[status] || 0;
@@ -361,7 +363,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
                      ))}
                   </select>
                   
-                  {order.status !== OrderStatus.FINISH && order.status !== OrderStatus.PAID && (
+                  {order.status !== OrderStatus.FINISH && order.status !== OrderStatus.PAID && order.status !== OrderStatus.SOLD && (
                     <Button 
                       onClick={() => updateOrderStatus(order, OrderStatus.PAID)}
                       variant="secondary"
@@ -416,7 +418,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user }) 
             </div>
           </div>
 
-          <Card title="Riwayat Pesanan Selesai">
+          <Card title="Riwayat Pesanan Selesai & Terbeli (SOLD)">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-gray-500">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50">
