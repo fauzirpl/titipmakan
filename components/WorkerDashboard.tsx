@@ -297,6 +297,11 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     setSearchQuery('');
   };
 
+  // Menentukan placeholder pencarian
+  const searchPlaceholder = menuViewMode === 'items' 
+    ? "Cari makanan..." 
+    : (selectedShopId ? "Cari menu di warung ini..." : "Cari warung...");
+
   return (
     <div className="max-w-4xl mx-auto p-4 pb-24">
       {toast && <Toast message={toast.message} type={toast.type || 'info'} onClose={() => setToast(null)} />}
@@ -433,7 +438,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
             <div className="relative w-full md:w-64">
               <input 
                 type="text"
-                placeholder={menuViewMode === 'items' ? "Cari makanan..." : "Cari warung..."}
+                placeholder={searchPlaceholder}
                 className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -524,13 +529,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                    {filteredShops.map(shop => (
                      <Card 
                         key={shop.id} 
-                        className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-6 px-4 text-center group h-full"
-                        onClick={() => setSelectedShopId(shop.id)} // Select shop and show its menus
+                        className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-6 px-4 text-center group h-full relative"
+                        onClick={() => {
+                          setSelectedShopId(shop.id);
+                          setSearchQuery(''); // Clear search query when selecting a shop
+                        }} 
                      >
-                        <div className="bg-blue-50 p-4 rounded-full mb-3 group-hover:bg-blue-100 transition-colors">
+                        <div className="bg-blue-50 p-4 rounded-full mb-3 group-hover:bg-blue-100 transition-colors flex items-center justify-center shadow-sm">
                            <Store size={32} className="text-blue-600" />
                         </div>
-                        <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">{shop.name}</h3>
+                        <h3 title={shop.name} className="font-bold text-sm text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 w-full">
+                          {shop.name}
+                        </h3>
                         
                         {shop.address && (
                           <div className="text-xs text-gray-500 mt-1 mb-2 flex items-center justify-center gap-1 line-clamp-2 min-h-[2.5em]">
