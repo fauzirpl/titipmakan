@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage, Input } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle, MapPin, Search, Lock } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle, MapPin, Search, Lock, XCircle } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -95,7 +95,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
       const prevOrder = prevOrdersRef.current.find(p => p.id === order.id);
       
       if (prevOrder && prevOrder.status !== order.status) {
-        const statusMsg = order.status === OrderStatus.SOLD ? 'Stok Habis / Dibatalkan' : order.status;
+        const statusMsg = order.status === OrderStatus.SOLD ? 'Stok Habis / Dibatalkan' : (order.status === OrderStatus.CANCELLED ? 'Dibatalkan' : order.status);
         const msg = `Status pesanan #${order.id.slice(0, 4)}... berubah menjadi: ${statusMsg}`;
         setToast({ message: msg, type: 'success' });
         if (Notification.permission === 'granted') {
@@ -178,6 +178,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     setEditingOrderId(null);
     setCart([]);
     setToast({ message: 'Mode edit dibatalkan.', type: 'info' });
+  };
+
+  const handleCancelOrder = async (order: Order) => {
+    if (confirm('Apakah Anda yakin ingin membatalkan pesanan ini?')) {
+      try {
+        const updatedOrder = { ...order, status: OrderStatus.CANCELLED };
+        await StorageService.saveOrder(updatedOrder);
+        setToast({ message: 'Pesanan berhasil dibatalkan.', type: 'success' });
+      } catch (e) {
+        setToast({ message: 'Gagal membatalkan pesanan.', type: 'danger' });
+      }
+    }
   };
 
   const placeOrder = async () => {
@@ -709,7 +721,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
             <div className="text-center py-10 text-gray-500">Belum ada pesanan. Yuk pesan makan!</div>
           ) : (
             myOrders.map(order => (
-              <Card key={order.id} className={`border-l-4 ${order.status === OrderStatus.FINISH ? 'border-l-green-500' : order.status === OrderStatus.SOLD ? 'border-l-red-500 opacity-90' : 'border-l-blue-500'}`}>
+              <Card key={order.id} className={`border-l-4 ${order.status === OrderStatus.FINISH ? 'border-l-green-500' : (order.status === OrderStatus.SOLD || order.status === OrderStatus.CANCELLED) ? 'border-l-red-500 opacity-90' : 'border-l-blue-500'}`}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <div className="text-xs text-gray-400 mb-1">{new Date(order.timestamp).toLocaleString('id-ID')}</div>
@@ -719,12 +731,20 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                           <UserCheck size={10} className="mr-1"/> {order.assignedObName}
                        </div>
                        {order.status === OrderStatus.PROSES && (
-                         <button 
-                           onClick={() => handleEditOrder(order)}
-                           className="text-xs flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100"
-                         >
-                           <Edit size={10} /> Edit
-                         </button>
+                         <div className="flex gap-1">
+                          <button 
+                            onClick={() => handleEditOrder(order)}
+                            className="text-xs flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100"
+                          >
+                            <Edit size={10} /> Edit
+                          </button>
+                          <button 
+                            onClick={() => handleCancelOrder(order)}
+                            className="text-xs flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100"
+                          >
+                            <XCircle size={10} /> Batal
+                          </button>
+                         </div>
                        )}
                     </div>
                   </div>

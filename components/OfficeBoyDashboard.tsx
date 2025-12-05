@@ -267,7 +267,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
   const statusFlow = [
     OrderStatus.PROSES,
     OrderStatus.ORDERED,
-    OrderStatus.SOLD, // Sekarang SOLD berarti stok habis/batal, tapi masih dalam flow opsional jika Karyawan batalkan atau OB tandai.
+    OrderStatus.SOLD,
     OrderStatus.PICKED_UP,
     OrderStatus.FINISH
   ];
@@ -281,8 +281,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
     return null;
   };
 
-  const activeOrders = orders.filter(o => o.status !== OrderStatus.FINISH && o.status !== OrderStatus.SOLD);
-  const historyOrders = orders.filter(o => o.status === OrderStatus.FINISH || o.status === OrderStatus.SOLD);
+  const activeOrders = orders.filter(o => o.status !== OrderStatus.FINISH && o.status !== OrderStatus.SOLD && o.status !== OrderStatus.CANCELLED);
+  const historyOrders = orders.filter(o => o.status === OrderStatus.FINISH || o.status === OrderStatus.SOLD || o.status === OrderStatus.CANCELLED);
 
   const statusCounts = activeOrders.reduce((acc, order) => {
     acc[order.status] = (acc[order.status] || 0) + 1;
@@ -290,8 +290,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
   }, {} as Record<string, number>);
 
   const totalRevenue = historyOrders.reduce((acc, order) => {
-    // Jangan hitung revenue jika status SOLD (batal/habis)
-    if (order.status === OrderStatus.SOLD) return acc;
+    // Jangan hitung revenue jika status SOLD (batal/habis) atau CANCELLED
+    if (order.status === OrderStatus.SOLD || order.status === OrderStatus.CANCELLED) return acc;
     return acc + order.totalAmount;
   }, 0);
 
@@ -299,7 +299,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
     [OrderStatus.PROSES]: { label: 'Diproses', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
     [OrderStatus.ORDERED]: { label: 'Dipesan', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
     [OrderStatus.PAID]: { label: 'Dibayar', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-    [OrderStatus.SOLD]: { label: 'Habis/Batal', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+    [OrderStatus.SOLD]: { label: 'Stok Habis', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+    [OrderStatus.CANCELLED]: { label: 'Dibatalkan', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-200' },
     [OrderStatus.PICKED_UP]: { label: 'Diambil', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
   };
 
@@ -476,11 +477,11 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
                     onChange={(e) => updateOrderStatus(order, e.target.value as OrderStatus)}
                   >
                      {Object.values(OrderStatus).map(s => (
-                       <option key={s} value={s}>{s === OrderStatus.SOLD ? 'Stok Habis / Batal' : s}</option>
+                       <option key={s} value={s}>{s === OrderStatus.SOLD ? 'Stok Habis / Batal' : (s === OrderStatus.CANCELLED ? 'Dibatalkan' : s)}</option>
                      ))}
                   </select>
                   
-                  {order.status !== OrderStatus.FINISH && order.status !== OrderStatus.PAID && order.status !== OrderStatus.SOLD && (
+                  {order.status !== OrderStatus.FINISH && order.status !== OrderStatus.PAID && order.status !== OrderStatus.SOLD && order.status !== OrderStatus.CANCELLED && (
                     <Button 
                       onClick={() => updateOrderStatus(order, OrderStatus.PAID)}
                       variant="secondary"
@@ -516,7 +517,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-500 mb-1">Total Pesanan Selesai</p>
-                <p className="text-2xl font-bold text-gray-800">{historyOrders.length}</p>
+                <p className="text-2xl font-bold text-gray-800">{historyOrders.filter(o => o.status === OrderStatus.FINISH).length}</p>
               </div>
               <div className="p-3 bg-green-50 rounded-full text-green-600 border border-green-100">
                 <Check size={24} />

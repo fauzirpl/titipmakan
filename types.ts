@@ -8,9 +8,10 @@ export enum OrderStatus {
   PROSES = 'PROSES',       // Baru masuk
   ORDERED = 'ORDERED',     // Sudah dipesan ke warung
   PAID = 'PAID',           // Sudah dibayar talangan/cash
-  SOLD = 'SOLD',           // Stok Habis / Tidak Tersedia (Cancelled)
+  SOLD = 'SOLD',           // Stok Habis / Tidak Tersedia (Cancelled by Shop)
   PICKED_UP = 'PICKED_UP', // Sudah diambil OB
   FINISH = 'FINISH',       // Sudah diantar ke pemesan
+  CANCELLED = 'CANCELLED', // Dibatalkan oleh Pemesan
 }
 
 export type ItemStatus = 'OK' | 'HABIS';
