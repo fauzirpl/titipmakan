@@ -40,6 +40,7 @@ export interface MenuItem {
 export interface Shop {
   id: string;
   name: string;
+  address?: string; // Alamat Warung
   isOpen: boolean;
 }
 

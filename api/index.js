@@ -74,6 +74,7 @@ const UserSchema = new mongoose.Schema({
 
 const ShopSchema = new mongoose.Schema({
   name: String,
+  address: String,
   isOpen: Boolean
 });
 

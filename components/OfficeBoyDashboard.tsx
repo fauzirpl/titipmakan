@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, Input, StatusBadge, Toast } from './ui';
-import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle, UserCog, MessageSquare } from 'lucide-react';
+import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle, UserCog, MessageSquare, MapPin } from 'lucide-react';
 
 interface OfficeBoyDashboardProps {
   user: User;
@@ -24,12 +25,14 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
 
   // Forms
   const [newShopName, setNewShopName] = useState('');
+  const [newShopAddress, setNewShopAddress] = useState('');
   const [newMenu, setNewMenu] = useState<Partial<MenuItem>>({ name: '', price: 0, category: 'Makanan' });
   const [selectedShopForMenu, setSelectedShopForMenu] = useState<string>('');
 
   // Edit States
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [editingShopName, setEditingShopName] = useState('');
+  const [editingShopAddress, setEditingShopAddress] = useState('');
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
 
   // Refs for tracking changes
@@ -171,20 +174,23 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
 
   const addShop = async () => {
     if (!newShopName) return;
-    const shop: Shop = { id: '', name: newShopName, isOpen: true }; 
+    const shop: Shop = { id: '', name: newShopName, address: newShopAddress, isOpen: true }; 
     await StorageService.saveShop(shop);
     setNewShopName('');
+    setNewShopAddress('');
     setToast({ message: 'Warung berhasil ditambah', type: 'success' });
   };
 
   const startEditingShop = (shop: Shop) => {
     setEditingShopId(shop.id);
     setEditingShopName(shop.name);
+    setEditingShopAddress(shop.address || '');
   };
 
   const cancelEditingShop = () => {
     setEditingShopId(null);
     setEditingShopName('');
+    setEditingShopAddress('');
   };
 
   const saveShopName = async () => {
@@ -192,10 +198,11 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
     
     const shopToUpdate = shops.find(s => s.id === editingShopId);
     if (shopToUpdate) {
-      await StorageService.saveShop({ ...shopToUpdate, name: editingShopName });
-      setToast({ message: 'Nama warung diperbarui', type: 'success' });
+      await StorageService.saveShop({ ...shopToUpdate, name: editingShopName, address: editingShopAddress });
+      setToast({ message: 'Informasi warung diperbarui', type: 'success' });
       setEditingShopId(null);
       setEditingShopName('');
+      setEditingShopAddress('');
     }
   };
 
@@ -576,15 +583,21 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
       {activeTab === 'manage' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 space-y-6">
-            <Card title="Tambah Warung">
-              <div className="flex gap-2">
+            <Card title="Tambah Warung Baru">
+              <div className="space-y-2">
                 <input 
-                  className="flex-1 px-3 py-2 border rounded text-sm"
+                  className="w-full px-3 py-2 border rounded text-sm"
                   placeholder="Nama Warung..."
                   value={newShopName}
                   onChange={(e) => setNewShopName(e.target.value)}
                 />
-                <Button onClick={addShop} className="px-3"><Plus size={18}/></Button>
+                <input 
+                  className="w-full px-3 py-2 border rounded text-sm"
+                  placeholder="Alamat Lengkap Warung..."
+                  value={newShopAddress}
+                  onChange={(e) => setNewShopAddress(e.target.value)}
+                />
+                <Button onClick={addShop} className="w-full flex justify-center items-center gap-2"><Plus size={18}/> Tambah Warung</Button>
               </div>
             </Card>
 
@@ -598,29 +611,47 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
                       cancelEditingMenu(); 
                     }
                   }}
-                  className={`p-4 rounded-lg border transition-all flex justify-between items-center ${selectedShopForMenu === shop.id ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300'} ${editingShopId === shop.id ? 'bg-yellow-50 border-yellow-300' : 'cursor-pointer'}`}
+                  className={`p-4 rounded-lg border transition-all flex justify-between items-start ${selectedShopForMenu === shop.id ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300'} ${editingShopId === shop.id ? 'bg-yellow-50 border-yellow-300' : 'cursor-pointer'}`}
                 >
                   {editingShopId === shop.id ? (
-                    <div className="flex flex-1 items-center gap-2">
+                    <div className="flex flex-col flex-1 gap-2">
                       <input 
                         className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={editingShopName}
                         onChange={(e) => setEditingShopName(e.target.value)}
+                        placeholder="Nama Warung"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <button onClick={(e) => { e.stopPropagation(); saveShopName(); }} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Simpan">
-                        <Check size={14} />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); cancelEditingShop(); }} className="p-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300" title="Batal">
-                        <X size={14} />
-                      </button>
+                      <input 
+                        className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={editingShopAddress}
+                        onChange={(e) => setEditingShopAddress(e.target.value)}
+                        placeholder="Alamat Warung"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="flex gap-2 justify-end mt-1">
+                        <button onClick={(e) => { e.stopPropagation(); cancelEditingShop(); }} className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300">
+                          Batal
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); saveShopName(); }} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1">
+                          <Check size={12} /> Simpan
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <>
-                      <span className="font-medium">{shop.name}</span>
-                      <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); startEditingShop(shop); }} className="p-1.5 text-blue-400 hover:text-blue-600 rounded hover:bg-blue-50" title="Edit Nama">
+                      <div className="flex-1">
+                        <span className="font-medium block">{shop.name}</span>
+                        {shop.address && (
+                          <div className="flex items-start gap-1 mt-1 text-xs text-gray-500">
+                            <MapPin size={12} className="mt-0.5 flex-shrink-0" />
+                            <span>{shop.address}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <button onClick={(e) => { e.stopPropagation(); startEditingShop(shop); }} className="p-1.5 text-blue-400 hover:text-blue-600 rounded hover:bg-blue-50" title="Edit Warung">
                           <Edit2 size={16} />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); deleteShop(shop.id); }} className="p-1.5 text-red-400 hover:text-red-600 rounded hover:bg-red-50" title="Hapus Warung">

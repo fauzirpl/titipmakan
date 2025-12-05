@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage, Input } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle, MapPin } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -456,14 +457,25 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                    {shops.map(shop => (
                      <Card 
                         key={shop.id} 
-                        className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-8 px-4 text-center group"
+                        className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-6 px-4 text-center group h-full"
                         onClick={() => setSelectedShopId(shop.id)} // Select shop and show its menus
                      >
                         <div className="bg-blue-50 p-4 rounded-full mb-3 group-hover:bg-blue-100 transition-colors">
                            <Store size={32} className="text-blue-600" />
                         </div>
-                        <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors">{shop.name}</h3>
-                        <p className="text-xs text-gray-500 mt-1">{menus.filter(m => m.shopId === shop.id).length} Menu</p>
+                        <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">{shop.name}</h3>
+                        
+                        {shop.address && (
+                          <div className="text-xs text-gray-500 mt-1 mb-2 flex items-center justify-center gap-1 line-clamp-2 min-h-[2.5em]">
+                            <MapPin size={10} className="flex-shrink-0" />
+                            <span>{shop.address}</span>
+                          </div>
+                        )}
+                        {!shop.address && <div className="min-h-[2.5em] mb-2"></div>}
+
+                        <div className="mt-auto pt-2 border-t w-full border-gray-100">
+                           <p className="text-xs text-gray-400">{menus.filter(m => m.shopId === shop.id).length} Menu</p>
+                        </div>
                      </Card>
                    ))}
                    {shops.length === 0 && (
@@ -475,11 +487,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
               ) : (
                 // View 2: Menu dalam Warung (Reusing the same grid style)
                 <>
-                   <div className="mb-4 flex items-center gap-2">
+                   <div className="mb-4 flex items-center gap-2 bg-white p-3 rounded-lg border shadow-sm">
                      <Button variant="secondary" onClick={() => setSelectedShopId(null)} className="px-2 py-1 text-xs">
-                        <ArrowLeft size={16} className="mr-1"/> Kembali ke Daftar Warung
+                        <ArrowLeft size={16} className="mr-1"/> Kembali
                      </Button>
-                     <h3 className="font-bold text-xl ml-2">{shops.find(s => s.id === selectedShopId)?.name}</h3>
+                     <div>
+                        <h3 className="font-bold text-lg text-gray-800 ml-2">{shops.find(s => s.id === selectedShopId)?.name}</h3>
+                        {shops.find(s => s.id === selectedShopId)?.address && (
+                          <p className="text-xs text-gray-500 ml-2 flex items-center gap-1">
+                             <MapPin size={12}/> {shops.find(s => s.id === selectedShopId)?.address}
+                          </p>
+                        )}
+                     </div>
                    </div>
 
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
