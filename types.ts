@@ -35,6 +35,7 @@ export interface MenuItem {
   price: number;
   description?: string;
   category: string;
+  isAvailable?: boolean; // Status ketersediaan global
 }
 
 export interface Shop {

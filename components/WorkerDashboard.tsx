@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, StatusBadge, Toast, MenuImage, Input } from './ui';
-import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle, MapPin } from 'lucide-react';
+import { ShoppingCart, Store, Plus, Minus, Edit, UserCheck, Wallet, AlertCircle, UserCog, ArrowLeft, Utensils, CheckCircle, MapPin, Search, Lock } from 'lucide-react';
 
 interface WorkerDashboardProps {
   user: User;
@@ -14,6 +15,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
   
   // View Mode: 'items' = list menu biasa, 'shops' = list warung dulu
   const [menuViewMode, setMenuViewMode] = useState<'items' | 'shops'>('items');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [shops, setShops] = useState<Shop[]>([]);
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -115,6 +117,12 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
   }, [myOrders, appName]);
 
   const addToCart = (menu: MenuItem) => {
+    // Check Availability
+    if (menu.isAvailable === false) {
+      setToast({ message: `Maaf, menu "${menu.name}" sedang habis!`, type: 'danger' });
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.menuId === menu.id);
       if (existing) {
@@ -122,6 +130,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
       }
       return [...prev, { ...menu, menuId: menu.id, quantity: 1, notes: '', status: 'OK' }];
     });
+    setToast({ message: `${menu.name} ditambahkan`, type: 'success' });
   };
 
   const updateQuantity = (menuId: string, delta: number) => {
@@ -247,16 +256,34 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
   };
 
   // Logic untuk menampilkan menu
-  const filteredMenus = selectedShopId 
-    ? menus.filter(m => m.shopId === selectedShopId) 
-    : menus;
+  const getFilteredMenus = () => {
+    let result = menus;
+    
+    // Filter by Shop (if selected)
+    if (selectedShopId) {
+      result = result.filter(m => m.shopId === selectedShopId);
+    }
 
+    // Filter by Search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(m => 
+        m.name.toLowerCase().includes(query) || 
+        m.category.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  };
+
+  const filteredMenus = getFilteredMenus();
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   // Fungsi untuk berpindah mode dan mereset filter
   const handleModeChange = (mode: 'items' | 'shops') => {
     setMenuViewMode(mode);
     setSelectedShopId(null);
+    setSearchQuery('');
   };
 
   return (
@@ -374,20 +401,34 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
              </div>
           )}
 
-          {/* Toggle View Mode Buttons */}
-          <div className="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
-            <button 
-              onClick={() => handleModeChange('items')} 
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'items' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              <Utensils size={14} /> Berdasarkan Menu
-            </button>
-            <button 
-              onClick={() => handleModeChange('shops')} 
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'shops' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              <Store size={14} /> Berdasarkan Warung
-            </button>
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-4">
+            {/* Toggle View Mode Buttons */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+              <button 
+                onClick={() => handleModeChange('items')} 
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'items' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Utensils size={14} /> Berdasarkan Menu
+              </button>
+              <button 
+                onClick={() => handleModeChange('shops')} 
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${menuViewMode === 'shops' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Store size={14} /> Berdasarkan Warung
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative w-full md:w-64">
+              <input 
+                type="text"
+                placeholder="Cari makanan..."
+                className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+            </div>
           </div>
 
           {/* MODE: BERDASARKAN ITEMS (Filter Horizontal Biasa) */}
@@ -416,14 +457,21 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
                 {filteredMenus.map(menu => {
                   const shopName = shops.find(s => s.id === menu.shopId)?.name || 'Unknown Shop';
+                  const isAvailable = menu.isAvailable !== false; // Default true if undefined
+
                   return (
-                    <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
+                    <Card key={menu.id} className={`hover:shadow-md transition-shadow flex flex-col h-full ${!isAvailable ? 'opacity-70 grayscale' : ''}`}>
                       <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
                         <MenuImage 
                           name={menu.name} 
                           category={menu.category} 
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         />
+                        {!isAvailable && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <span className="bg-red-600 text-white px-3 py-1 rounded font-bold text-sm transform -rotate-12 border-2 border-white">HABIS</span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-start mb-1">
@@ -434,8 +482,15 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                           <Store size={12} /> {shopName}
                         </p>
                       </div>
-                      <Button onClick={() => addToCart(menu)} className="w-full text-sm py-1.5 mt-auto">
-                        + Tambah
+                      <Button 
+                        onClick={() => addToCart(menu)} 
+                        className="w-full text-sm py-1.5 mt-auto"
+                        disabled={!isAvailable}
+                        variant={!isAvailable ? 'secondary' : 'primary'}
+                      >
+                         {!isAvailable ? (
+                           <span className="flex items-center justify-center gap-1"><Lock size={14}/> Stok Habis</span>
+                         ) : '+ Tambah'}
                       </Button>
                     </Card>
                   );
@@ -503,14 +558,21 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                    </div>
 
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
-                     {filteredMenus.map(menu => (
-                       <Card key={menu.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
+                     {filteredMenus.map(menu => {
+                       const isAvailable = menu.isAvailable !== false;
+                       return (
+                       <Card key={menu.id} className={`hover:shadow-md transition-shadow flex flex-col h-full ${!isAvailable ? 'opacity-70 grayscale' : ''}`}>
                          <div className="h-40 bg-gray-200 mb-3 rounded-lg overflow-hidden relative">
                            <MenuImage 
                              name={menu.name} 
                              category={menu.category} 
                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                            />
+                           {!isAvailable && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <span className="bg-red-600 text-white px-3 py-1 rounded font-bold text-sm transform -rotate-12 border-2 border-white">HABIS</span>
+                            </div>
+                           )}
                          </div>
                          <div className="flex-1">
                            <div className="flex justify-between items-start mb-1">
@@ -521,14 +583,21 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                              <Store size={12} /> {shops.find(s => s.id === menu.shopId)?.name}
                            </p>
                          </div>
-                         <Button onClick={() => addToCart(menu)} className="w-full text-sm py-1.5 mt-auto">
-                           + Tambah
+                         <Button 
+                           onClick={() => addToCart(menu)} 
+                           className="w-full text-sm py-1.5 mt-auto"
+                           disabled={!isAvailable}
+                           variant={!isAvailable ? 'secondary' : 'primary'}
+                         >
+                            {!isAvailable ? (
+                               <span className="flex items-center justify-center gap-1"><Lock size={14}/> Stok Habis</span>
+                             ) : '+ Tambah'}
                          </Button>
                        </Card>
-                     ))}
+                     )})}
                      {filteredMenus.length === 0 && (
                         <div className="col-span-full text-center py-12 text-gray-500 border rounded-lg border-dashed">
-                           Warung ini belum memiliki menu.
+                           {searchQuery ? 'Menu tidak ditemukan' : 'Warung ini belum memiliki menu.'}
                         </div>
                      )}
                    </div>

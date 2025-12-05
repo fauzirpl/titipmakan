@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
 import { Button, Card, Input, StatusBadge, Toast } from './ui';
-import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle, UserCog, MessageSquare, MapPin } from 'lucide-react';
+import { ClipboardList, Store, Plus, Trash2, Edit2, Save, History, Bell, BarChart3, Check, X, Wallet, AlertTriangle, UserCog, MessageSquare, MapPin, Power } from 'lucide-react';
 
 interface OfficeBoyDashboardProps {
   user: User;
@@ -239,12 +240,20 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
       name: newMenu.name,
       price: Number(newMenu.price),
       category: newMenu.category || 'Makanan',
+      // Keep existing status if editing, else default true
+      isAvailable: editingMenuId ? menus.find(m => m.id === editingMenuId)?.isAvailable : true, 
     };
     
     await StorageService.saveMenu(menuPayload);
     setNewMenu({ name: '', price: 0, category: 'Makanan' });
     setEditingMenuId(null);
     setToast({ message: editingMenuId ? 'Menu berhasil diperbarui' : 'Menu berhasil ditambah', type: 'success' });
+  };
+
+  const toggleMenuAvailability = async (menu: MenuItem) => {
+    const newStatus = !menu.isAvailable;
+    await StorageService.saveMenu({ ...menu, isAvailable: newStatus });
+    setToast({ message: `Menu ${menu.name} sekarang ${newStatus ? 'TERSEDIA' : 'HABIS'}`, type: 'info' });
   };
 
   const deleteMenu = async (id: string) => {
@@ -720,6 +729,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
                         <th className="px-4 py-3">Menu</th>
                         <th className="px-4 py-3">Kategori</th>
                         <th className="px-4 py-3">Harga</th>
+                        <th className="px-4 py-3 text-center">Stok</th>
                         <th className="px-4 py-3 text-right">Aksi</th>
                       </tr>
                     </thead>
@@ -729,6 +739,14 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
                           <td className="px-4 py-3 font-medium text-gray-900">{menu.name}</td>
                           <td className="px-4 py-3">{menu.category}</td>
                           <td className="px-4 py-3">Rp{menu.price.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button 
+                              onClick={() => toggleMenuAvailability(menu)}
+                              className={`px-2 py-1 text-xs rounded border flex items-center gap-1 mx-auto ${menu.isAvailable !== false ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}
+                            >
+                               <Power size={12} /> {menu.isAvailable !== false ? 'Tersedia' : 'Habis'}
+                            </button>
+                          </td>
                           <td className="px-4 py-3 text-right">
                              <div className="flex justify-end gap-2">
                                 <button onClick={() => startEditingMenu(menu)} className="text-blue-500 hover:text-blue-700" title="Edit Menu">

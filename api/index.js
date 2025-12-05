@@ -83,7 +83,8 @@ const MenuSchema = new mongoose.Schema({
   name: String,
   price: Number,
   description: String,
-  category: String
+  category: String,
+  isAvailable: { type: Boolean, default: true }
 });
 
 const OrderSchema = new mongoose.Schema({
