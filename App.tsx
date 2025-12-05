@@ -10,13 +10,19 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // App Name from Environment Variable
+  const appName = process.env.APP_NAME || 'eFatur';
+
   useEffect(() => {
+    // Set Document Title
+    document.title = appName;
+
     const user = StorageService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
     }
     setLoading(false);
-  }, []);
+  }, [appName]);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -44,8 +50,10 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-2">
-              <div className="bg-blue-600 text-white p-1.5 rounded-lg font-bold text-lg">KK</div>
-              <span className="font-semibold text-gray-800">e-Patuy</span>
+              <div className="bg-blue-600 text-white p-1.5 rounded-lg font-bold text-lg">
+                {appName.substring(0, 2).toUpperCase()}
+              </div>
+              <span className="font-semibold text-gray-800">{appName}</span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 ml-2">
                 {currentUser.role === UserRole.WORKER ? 'Mode Karyawan' : 'Mode Pramu Bakti'}
               </span>

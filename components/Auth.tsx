@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { StorageService } from '../services/storage';
 import { User, UserRole } from '../types';
@@ -18,6 +17,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [role, setRole] = useState<UserRole>(UserRole.WORKER);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const appName = process.env.APP_NAME || 'eFatur';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +57,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="mx-auto bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
             <ChefHat className="w-8 h-8 text-blue-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">process.env.APP_NAME</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{appName}</h1>
           <p className="text-gray-500">Pesan makan anti lupa-lupa club</p>
         </div>
 

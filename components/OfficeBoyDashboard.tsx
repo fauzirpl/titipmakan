@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, OrderItem } from '../types';
 import { StorageService } from '../services/storage';
@@ -39,6 +38,8 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
   const prevOrderIds = useRef<Set<string>>(new Set());
   const prevOrderStatuses = useRef<Record<string, OrderStatus>>({});
   const isFirstLoad = useRef(true);
+
+  const appName = process.env.APP_NAME || 'eFatur';
 
   useEffect(() => {
     // Request notification permission
@@ -96,7 +97,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
         const msg = `Pesanan Baru dari ${order.workerName}!`;
         setToast({ message: msg, type: 'info' });
         if (Notification.permission === 'granted') {
-           new Notification('KantinKantor - Pesanan Baru', {
+           new Notification(`${appName} - Pesanan Baru`, {
             body: `${order.workerName} memesan ${order.items.length} item.`,
             icon: '/icon.png'
           });
@@ -110,7 +111,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
               const msg = `Pesanan ${order.workerName} SUDAH DIBAYAR!`;
               setToast({ message: msg, type: 'success' });
               if (Notification.permission === 'granted') {
-                new Notification('KantinKantor - Pembayaran Diterima', {
+                new Notification(`${appName} - Pembayaran Diterima`, {
                   body: `${order.workerName} telah melakukan pembayaran.`,
                   icon: '/icon.png'
                 });
@@ -121,7 +122,7 @@ export const OfficeBoyDashboard: React.FC<OfficeBoyDashboardProps> = ({ user, on
         }
       }
     });
-  }, [orders]);
+  }, [orders, appName]);
 
   const saveProfile = async () => {
     setIsSavingProfile(true);

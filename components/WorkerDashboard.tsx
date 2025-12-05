@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { MenuItem, Order, OrderStatus, Shop, User, CartItem, UserRole } from '../types';
 import { StorageService } from '../services/storage';
@@ -41,6 +40,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
   // Refs
   const prevOrdersRef = useRef<Order[]>([]);
   const isFirstLoad = useRef(true);
+
+  const appName = process.env.APP_NAME || 'eFatur';
 
   useEffect(() => {
     if (Notification.permission === 'default') {
@@ -96,7 +97,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
         const msg = `Status pesanan #${order.id.slice(0, 4)}... berubah menjadi: ${statusMsg}`;
         setToast({ message: msg, type: 'success' });
         if (Notification.permission === 'granted') {
-          new Notification('Update Pesanan KantinKantor', { body: msg, icon: '/icon.png' });
+          new Notification(`Update Pesanan ${appName}`, { body: msg, icon: '/icon.png' });
         }
       }
 
@@ -111,7 +112,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     });
 
     prevOrdersRef.current = myOrders;
-  }, [myOrders]);
+  }, [myOrders, appName]);
 
   const addToCart = (menu: MenuItem) => {
     setCart(prev => {
