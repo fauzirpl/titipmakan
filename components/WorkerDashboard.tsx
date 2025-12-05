@@ -276,7 +276,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
     return result;
   };
 
+  // Logic untuk memfilter Warung berdasarkan pencarian
+  const getFilteredShops = () => {
+    if (!searchQuery) return shops;
+    const query = searchQuery.toLowerCase();
+    return shops.filter(shop => 
+      shop.name.toLowerCase().includes(query) || 
+      (shop.address && shop.address.toLowerCase().includes(query))
+    );
+  };
+
   const filteredMenus = getFilteredMenus();
+  const filteredShops = getFilteredShops();
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   // Fungsi untuk berpindah mode dan mereset filter
@@ -422,7 +433,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
             <div className="relative w-full md:w-64">
               <input 
                 type="text"
-                placeholder="Cari makanan..."
+                placeholder={menuViewMode === 'items' ? "Cari makanan..." : "Cari warung..."}
                 className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -510,7 +521,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
               {!selectedShopId ? (
                 // View 1: Daftar Warung
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-20">
-                   {shops.map(shop => (
+                   {filteredShops.map(shop => (
                      <Card 
                         key={shop.id} 
                         className="cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all flex flex-col items-center justify-center py-6 px-4 text-center group h-full"
@@ -534,9 +545,9 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ user, onUserUp
                         </div>
                      </Card>
                    ))}
-                   {shops.length === 0 && (
+                   {filteredShops.length === 0 && (
                       <div className="col-span-full text-center py-10 text-gray-500">
-                        Belum ada warung terdaftar.
+                        {searchQuery ? 'Warung tidak ditemukan.' : 'Belum ada warung terdaftar.'}
                       </div>
                    )}
                 </div>
